@@ -12,61 +12,105 @@ class MinecraftRegion
   def initialize file
     @file = file
     @mcadata = File.binread file
-    @chunks = []
+    @chunks = {}
   end
 
-  def chunk i
-    @chunks[i] ||= MCNode.new(parse_chunk(i), 'Chunk')
+  def chunk x,z
+    @chunks[[x,z]] ||= Chunk.new(parse_chunk(x,z))
   end
 
-  def parse_chunk i
-    sector = decode_sector i
+  def parse_chunk x,z
+    sector = decode_sector 32*z+x
     TagParser.parse(sector)['Level']
   end
 
   private
   def decode_sector i
     location = @mcadata[4*i,4].unpack('N')[0]
-    sector = location >> 8
-    sector_size = location & 0xff
+    sector = location>>8
+    sector_size = location&0xff
     size, compress = @mcadata[sector*4096,5].unpack('Nc')
-    Zlib.inflate @mcadata[sector*4096+5,size - 1]
+    Zlib.inflate @mcadata[sector*4096+5,size-1]
   end
 
   class MCNode
     def initialize hash, name
       define_singleton_method(:to_h){hash}
       values = hash.map do |key, value|
-        [MCNode.snake_case(key), MCNode.construct(value, "#{name}::#{key}")]
+        [key, MCNode.snake_case(key), value]
       end
-      define_singleton_method(:to_s){"#<#{name}:[#{values.map(&:first).join(', ')}]>"}
-      values.each do |method, value|
-        define_singleton_method(method){value}
+      cache = {}
+      define_singleton_method(:to_s){"#<#{name}:[#{values.map{|a|a[1]}.join(', ')}]>"}
+      values.each do |key, method, value|
+        define_singleton_method(method){
+          cache[method] ||= MCNode.construct value, "#{name}:#{key}"
+        }
       end
     end
     def inspect;to_s;end
-    def self.snake_case name
-      name.gsub(/[A-Z]+/){|c|"_#{[c[0...-1],c[-1]].reject(&:empty?).join('_')}"}.downcase.gsub(/^_/,'')
-    end
-    def self.single_name name
-      case name
-      when /ies$/
-        name[0...-3]+'y'
-      when /s$/
-        name[0...-1]
-      else
-        name
-      end
-    end
     def self.construct value, name
       case value
       when Hash
         new value, name
       when Array
-        classname = single_name(name)
+        classname = name.gsub(/ies$/,'y').gsub(/s$/,'')
         value.map{|v|construct v, classname}
       else
         value
+      end
+    end
+    def self.snake_case name
+      name.gsub(/[A-Z]+/){|c|"_#{[c[0...-1],c[-1]].reject(&:empty?).join('_')}"}.downcase.gsub(/^_/,'')
+    end
+  end
+
+  class Chunk < MCNode
+    attr_reader :height_map, :biomes
+    def initialize hash
+      hash = hash.dup
+      @height_map = hash.delete('HeightMap').each_slice(16).to_a
+      @biomes = hash.delete('Biomes').each_slice(16).to_a
+      sections = hash.delete 'Sections'
+      define_singleton_method :block do |x, z, y|
+        Block.new sections, x, z, y
+      end
+      super hash, self.class.name
+      define_singleton_method(:to_s){
+        "#<#{self.class.name}:[#{x_pos}, #{z_pos}]>"
+      }
+    end
+    class Block
+      Axis = %i(x z y)
+      Attributes = %w(SkyLight BlockLight Data).map{|attr|
+        [MCNode.snake_case(attr), attr]
+      }.to_h
+      attr_reader *Axis
+      def initialize sections, x, z, y
+        @x, @z, @y = x, z, y
+        @section = sections[y>>4] || {}
+        @index = ((y&0xf)<<8)|(x<<4)|z
+      end
+      def to_s
+        keys = [*Axis, :id, *Attributes.keys]
+        "#<#{self.class.name}:{#{keys.map{|a|"#{a}: #{send a}"}.join(', ')}>"
+      end
+      def id
+        (halfbyte('Add')<<8)|byte('Blocks')
+      end
+      Attributes.each do |name, attr|
+        define_method name do
+          halfbyte attr
+        end
+      end
+      def inspect;to_s;end
+      private
+      def byte key
+        arr = @section[key]
+        arr ? arr[@index]&0xff : 0
+      end
+      def halfbyte key
+        arr = @section[key]
+        arr ? (arr[@index/2]&0xff)>>((@index&1)*4) : 0
       end
     end
   end
@@ -140,12 +184,9 @@ class MinecraftRegion
 end
 
 mc=MinecraftRegion.new "r.-1.-1.mca"
-chunk = mc.chunk 256
-p chunk #=> #<Chunk:[light_populated, z_pos, height_map, sections, ...]>
-p chunk.sections #=> [#<Chunk::Section:[blocks, sky_light, y, block_light, data]>,...]
-p chunk.height_map #=> [63,63,64,64,64,64,59,59,60,...]
+chunk = mc.chunk 0,8
+p chunk #=> #<MinecraftRegion::Chunk:[-32, -24]>
+p chunk.height_map[0][2] #=> 64
+p chunk.block(0,2,63) #<MinecraftRegion::Chunk::Block:{x: 0, z: 2, y: 63, id: 12, sky_light: 0, block_light: 0, data: 0>
 
 binding.pry
-1024.times.map{|i|
-  mc.chunk(i);p i
-}
