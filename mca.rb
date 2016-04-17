@@ -15,22 +15,27 @@ class MinecraftRegion
     @chunks = {}
   end
 
-  def chunk x,z
+  def []= x, z, chunk
+    @chunks[[x,z]] = chunk
+  end
+
+  def [] x, z
     @chunks[[x,z]] ||= Chunk.new(parse_chunk(x,z))
   end
 
   def parse_chunk x,z
-    sector = decode_sector 32*z+x
+    sector = Zlib.inflate compressed_sector(32*z+x)
     Tag::Hash.decode(sector,0)[1]['']['Level']
   end
 
   private
-  def decode_sector i
+
+  def compressed_sector i
     location = @mcadata[4*i,4].unpack('N')[0]
     sector = location>>8
     sector_size = location&0xff
     size, compress = @mcadata[sector*4096,5].unpack('Nc')
-    Zlib.inflate @mcadata[sector*4096+5,size-1]
+    @mcadata[sector*4096+5,size-1]
   end
 
   class MCNode
@@ -70,47 +75,70 @@ class MinecraftRegion
       hash = hash.value.dup
       @height_map = hash.delete('HeightMap').value.each_slice(16).to_a
       @biomes = hash.delete('Biomes').value.each_slice(16).to_a
-      sections = hash.delete 'Sections'
-      define_singleton_method :block do |x, z, y|
-        Block.new sections, x, z, y
-      end
+      @sections = hash.delete 'Sections'
       super hash, self.class.name
       define_singleton_method(:to_s){
         "#<#{self.class.name}:[#{x_pos}, #{z_pos}]>"
       }
     end
+    def [] x, z, y
+      section = @sections[y>>4]
+      index = ((y&0xf)<<8)|(x<<4)|z
+      return nil unless section
+      type = (block_halfbyte(section, 'Add', index)<<8)|block_byte(section, 'Blocks', index)
+      return nil if type == 0
+      Block.new type, *%w(SkyLight BlockLight Data).map{|key|block_halfbyte(section, key, index)}
+    end
+    def []= x, z, y, block
+      si, index = y>>4, ((y&0xf)<<8)|(x<<4)|z
+      return if block.nil? && @sections[si].nil?
+      section = @sections[y>>4] ||= Tag::Hash.new(
+        'Y' => Tag::Byte.new(y>>4),
+        'Blocks' => Tag::IntArray.new(4096.times.map{0}),
+        'SkyLight' => Tag::IntArray.new(2048.times.map{0}),
+        'BlockLight' => Tag::IntArray.new(2048.times.map{0}),
+        'Data' => Tag::IntArray.new(2048.times.map{0})
+      )
+      data = {
+        'SkyLight' => (block ? block.sky_light : 0),
+        'BlockLight' => (block ? block.sky_light : 0),
+        'Data' => (block ? block.data : 0)
+      }
+      type = block ? block.type : 0
+      add = type >> 8
+      block = type & 0xff
+      data.each do |key, value|
+        half_set[key, value]
+      end
+      section.value['Add'] ||= Tag::IntArray.new(2048.times.map{0}) if add>0
+      block_halfbyte_set section, 'Add', index, add if section['Add']
+      section['Blocks'][index] = block
+    end
+    def compact
+      @sections.each do |section|
+        section.value.delete 'Add' if section['Add'].all? &:zero?
+      end
+      @sections.pop while @sections.last['Add'].nil? && sections.last['Blocks'].all?(&:zero?)
+    end
+    private
+    def block_byte section, key, index
+      arr = section[key]
+      arr ? arr[index]&0xff : 0
+    end
+    def block_halfbyte_set section, key, index, value
+      arr = section[key]
+      val = arr[index/2]
+      arr[index/2]&=0xf<<4*(index&1)
+      arr[index/2]|=value<<4*(1-index&1)
+    end
+    def block_halfbyte section, key, index
+      arr = section[key]
+      arr ? ((arr[index/2]&0xff)>>4*(1-index&1))&0xf : 0
+    end
     class Block
-      Axis = %i(x z y)
-      Attributes = %w(SkyLight BlockLight Data).map{|attr|
-        [MCNode.snake_case(attr), attr]
-      }.to_h
-      attr_reader *Axis
-      def initialize sections, x, z, y
-        @x, @z, @y = x, z, y
-        @section = sections[y>>4] || {}
-        @index = ((y&0xf)<<8)|(x<<4)|z
-      end
-      def to_s
-        keys = [*Axis, :id, *Attributes.keys]
-        "#<#{self.class.name}:{#{keys.map{|a|"#{a}: #{send a}"}.join(', ')}>"
-      end
-      def id
-        (halfbyte('Add')<<8)|byte('Blocks')
-      end
-      Attributes.each do |name, attr|
-        define_method name do
-          halfbyte attr
-        end
-      end
-      def inspect;to_s;end
-      private
-      def byte key
-        arr = @section[key]
-        arr ? arr[@index]&0xff : 0
-      end
-      def halfbyte key
-        arr = @section[key]
-        arr ? (arr[@index/2]&0xff)>>((@index&1)*4) : 0
+      attr_accessor :type, :sky_light, :block_light, :data
+      def initialize t, s, b, d
+        @type, @sky_light, @block_light, @data = t, s, b, d
       end
     end
   end
@@ -252,13 +280,13 @@ class MinecraftRegion
 end
 
 mc=MinecraftRegion.new "r.-1.-1.mca"
-chunk = mc.chunk 0,8
+chunk = mc[0,8]
 p chunk #=> #<MinecraftRegion::Chunk:[-32, -24]>
 p chunk.height_map[0][2] #=> 64
-p chunk.block(0,2,63) #<MinecraftRegion::Chunk::Block:{x: 0, z: 2, y: 63, id: 12, sky_light: 0, block_light: 0, data: 0>
-# binding.pry
+p chunk[0,2,63] #<MinecraftRegion::Chunk::Block:{x: 0, z: 2, y: 63, id: 12, sky_light: 0, block_light: 0, data: 0>
 p :AAA
-sec=mc.send :decode_sector, 256;sec.size
+sec=Zlib.inflate mc.send(:compressed_sector, 256);sec.size
 hoge = MinecraftRegion::Tag.decode sec
 sec2 = MinecraftRegion::Tag.encode hoge
+p sec == sec2
 binding.pry
