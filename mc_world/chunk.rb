@@ -71,7 +71,7 @@ module MCWorld
         HeightMap: MCWorld::Tag::IntArray.new(height_map.flatten),
         Sections: @sections,
         LastUpdate: last_update,
-        V: v,
+        V: v||MCWorld::Tag::Byte.new(1),
         Biomes: MCWorld::Tag::ByteArray.new(biomes.flatten),
         InhabitedTime: inhabited_time,
         xPos: x_pos,
@@ -114,7 +114,7 @@ module MCWorld
       add = type >> 8
       block = type & 0xff
       data.each do |key, value|
-        half_set[key, value]
+        block_halfbyte_set section, key, index, value
       end
       section.value['Add'] ||= Tag::IntArray.new(2048.times.map{0}) if add>0
       block_halfbyte_set section, 'Add', index, add if section['Add']

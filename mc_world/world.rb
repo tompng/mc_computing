@@ -17,12 +17,11 @@ class MCWorld::World
     if file
       @file = file
       @mcadata = File.binread file
-      @sectors = 1024.times.map{|i|
+      @sectors = 1024.times.map do |i|
         sector_id, sector_count = @mcadata[4*i,4].unpack('N')[0].divmod(0x100)
         size, compress = @mcadata[sector_id*4096,5].unpack 'Nc'
-        sector = @mcadata[sector_id*4096+5,size-1]
-        sector unless sector.size.zero?
-      }
+        @mcadata[sector_id*4096+5,size-1] unless size.zero?
+      end
       @timestamps = @mcadata[4096,4096].unpack 'N*'
     else
       @x, @z = x, z
@@ -34,7 +33,8 @@ class MCWorld::World
 
   def [] x, z
     if @file
-      @chunks[[x,z]] ||= MCWorld::Chunk.new data: Zlib.inflate(@sectors[32*z+x])
+      sector = @sectors[32*z+x]
+      @chunks[[x,z]] ||= MCWorld::Chunk.new data: Zlib.inflate(sector) if sector
     else
       @chunks[[x,z]] ||= MCWorld::Chunk.new x: @x*32+x, z: @z*32+z
     end
@@ -49,18 +49,25 @@ class MCWorld::World
     @sectors = 1024.times.map{|i|
       z,x=i.divmod 32
       chunk = @chunks[[x,z]]
-      chunk ? chunk.encode : @sectors[i]
+      chunk ? Zlib.deflate(chunk.encode) : @sectors[i]
     }
+    sector_index = 2
     @sectors.each do |sector|
+      unless sector
+        out << [0].pack('N')
+        next
+      end
       sector_count = (sector.size+5).fdiv(4096).ceil
       sector_id = sector_index
-      sector_index += sector_id
+      sector_index += sector_count
       out << [((sector_id<<8)|sector_count)].pack('N')
     end
     out << @timestamps.pack('N*')
-    @sectors.each do |sector|
+    @sectors.compact.each do |sector|
+      compress = 2
+      out << [sector.size+1, compress].pack('Nc')
       out << sector
-      out << 0.chr*(-sector.size%4096)
+      out << 0.chr*(-(sector.size+5)%4096)
     end
     out.join
   end
