@@ -36,7 +36,7 @@ module MCWorld
     attr_reader :height_map, :biomes
     def initialize data: nil, x: nil, z: nil
       if data
-        hash = MCWorld::Tag.decode(Zlib.inflate(data))['Level']
+        hash = MCWorld::Tag.decode(data)['Level']
         @hash = hash
         @height_map = hash['HeightMap'].value.each_slice(16).to_a
         @biomes = hash['Biomes'].value.each_slice(16).to_a
@@ -79,7 +79,7 @@ module MCWorld
         TileEntities: tile_entities,
         Entities: entities
       )
-      Zlib.deflate MCWorld::Tag.encode(MCWorld::Tag::Hash.new('Level'=>data))
+      MCWorld::Tag.encode(MCWorld::Tag::Hash.new('Level'=>data))
     end
     def to_s
       "#<#{self.class.name}:[#{x_pos.value}, #{z_pos.value}]>"
