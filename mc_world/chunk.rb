@@ -34,34 +34,35 @@ module MCWorld
     Attributes = %w(Entities InhabitedTime LastUpdate LightPopulated TerrainPopulated TileEntities V xPos zPos)
     attr_accessor *Attributes.map{|key|AttributeNode.snake_case(key)}
     attr_reader :height_map, :biomes
-    def initialize data: nil, x: nil, y: nil
+    def initialize data: nil, x: nil, z: nil
       if data
-        @data = data
-        @height_map = data['HeightMap'].value.each_slice(16).to_a
-        @biomes = data['Biomes'].value.each_slice(16).to_a
-        @sections = data['Sections']
+        hash = MCWorld::Tag.decode(Zlib.inflate(data))['Level']
+        @hash = hash
+        @height_map = hash['HeightMap'].value.each_slice(16).to_a
+        @biomes = hash['Biomes'].value.each_slice(16).to_a
+        @sections = hash['Sections']
         Attributes.each do |key|
           name = "@#{AttributeNode.snake_case(key)}"
-          value = AttributeNode.construct data[key], self.class.name
+          value = AttributeNode.construct hash[key], self.class.name
           instance_variable_set name, value
         end
       else
-        @entities = MCWorld::Tag::List.new MCWorld::Tag.Hash, []
+        @entities = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
         @inhabited_time = MCWorld::Tag::Long.new 0
         @last_update = MCWorld::Tag::Long.new 0
         @light_populated = MCWorld::Tag::Byte.new 1
         @terrain_populated = MCWorld::Tag::Byte.new 1
-        @tile_entities = MCWorld::Tag::List.new MCWorld::Tag.Hash, []
+        @tile_entities = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
         @v = MCWorld::Tag::Byte.new 1
         @x_pos = MCWorld::Tag::Int.new x
-        @y_pos = MCWorld::Tag::Int.new y
+        @z_pos = MCWorld::Tag::Int.new z
         @height_map = 16.times.map{16.times.map{0}}
         @biomes = 16.times.map{16.times.map{0}}
-        @sections = MCWorld::Tag::List.new MCWorld::Tag.Hash, []
+        @sections = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
       end
     end
     def to_h
-      @data
+      @hash
     end
     def encode
       data = MCWorld::Tag::Hash.new(
@@ -78,7 +79,7 @@ module MCWorld
         TileEntities: tile_entities,
         Entities: entities
       )
-      MCWorld::Tag.encode MCWorld::Tag::Hash.new('Level'=>data)
+      Zlib.deflate MCWorld::Tag.encode(MCWorld::Tag::Hash.new('Level'=>data))
     end
     def to_s
       "#<#{self.class.name}:[#{x_pos.value}, #{z_pos.value}]>"

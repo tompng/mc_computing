@@ -11,29 +11,27 @@ class MCWorld::World
     to_s
   end
 
-  def initialize file
-    @file = file
-    @mcadata = File.binread file
-    @sectors = []
+  def initialize file: nil, x: nil, z: nil
+    if file
+      @file = file
+      @mcadata = File.binread file
+    else
+      @x, @z = x, z
+    end
     @chunks = {}
   end
 
-  def []= x, z, chunk
-    @chunks[[x,z]] = chunk
-  end
-
   def [] x, z
-    @chunks[[x,z]] ||= ::MCWorld::Chunk.new(data: parse_chunk(x,z))
+    if @file
+      @chunks[[x,z]] ||= MCWorld::Chunk.new data: sector(32*z+x)
+    else
+      @chunks[[x,z]] ||= MCWorld::Chunk.new x: @x*32+x, z: @z*32+z
+    end
   end
 
   private
 
-  def parse_chunk x,z
-    sector = Zlib.inflate compressed_sector(32*z+x)
-    MCWorld::Tag::Hash.decode(sector,0)[1]['']['Level']
-  end
-
-  def compressed_sector i
+  def sector i
     location = @mcadata[4*i,4].unpack('N')[0]
     sector = location>>8
     sector_size = location&0xff
