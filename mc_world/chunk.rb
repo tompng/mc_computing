@@ -31,22 +31,25 @@ module MCWorld
   end
 
   class Chunk < AttributeNode
-    Attributes = %w(Entities InhabitedTime LastUpdate LightPopulated TerrainPopulated TileEntities V xPos zPos)
+    Attributes = %w(Entities InhabitedTime LastUpdate LightPopulated TerrainPopulated TileEntities TileTicks V xPos zPos)
     attr_accessor *Attributes.map{|key|AttributeNode.snake_case(key)}
-    attr_reader :height_map, :biomes
+    attr_reader :height_map, :biomes, :version
     def initialize data: nil, x: nil, z: nil
       if data
-        hash = MCWorld::Tag.decode(data)['Level']
+        hash = MCWorld::Tag.decode(data)
+        @version = hash['DataVersion']
+        level = hash['Level']
         @hash = hash
-        @height_map = hash['HeightMap'].value.each_slice(16).to_a
-        @biomes = hash['Biomes'].value.each_slice(16).to_a
-        @sections = hash['Sections']
+        @height_map = level['HeightMap'].value.each_slice(16).to_a
+        @biomes = level['Biomes'].value.each_slice(16).to_a
+        @sections = level['Sections']
         Attributes.each do |key|
           name = "@#{AttributeNode.snake_case(key)}"
-          value = AttributeNode.construct hash[key], self.class.name
+          value = AttributeNode.construct level[key], self.class.name
           instance_variable_set name, value
         end
       else
+        @version = MCWorld::Tag::Integer.new 176
         @entities = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
         @inhabited_time = MCWorld::Tag::Long.new 0
         @last_update = MCWorld::Tag::Long.new 0
@@ -57,7 +60,7 @@ module MCWorld
         @x_pos = MCWorld::Tag::Int.new x
         @z_pos = MCWorld::Tag::Int.new z
         @height_map = 16.times.map{16.times.map{0}}
-        @biomes = 16.times.map{16.times.map{0}}
+        @biomes = 16.times.map{16.times.map{-1}}
         @sections = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
       end
     end
@@ -65,21 +68,24 @@ module MCWorld
       @hash
     end
     def encode
-      data = MCWorld::Tag::Hash.new(
+      level = {
         LightPopulated: light_populated,
         zPos: z_pos,
         HeightMap: MCWorld::Tag::IntArray.new(height_map.flatten),
+        TileTicks: tile_ticks,
         Sections: @sections,
         LastUpdate: last_update,
-        V: v||MCWorld::Tag::Byte.new(1),
+        V: v,
         Biomes: MCWorld::Tag::ByteArray.new(biomes.flatten),
         InhabitedTime: inhabited_time,
         xPos: x_pos,
         TerrainPopulated: terrain_populated,
         TileEntities: tile_entities,
         Entities: entities
-      )
-      MCWorld::Tag.encode(MCWorld::Tag::Hash.new('Level'=>data))
+      }.select{|k,v|v}
+      data = {'Level' => MCWorld::Tag::Hash.new(level)}
+      data['DataVersion'] = @version if version
+      MCWorld::Tag.encode(MCWorld::Tag::Hash.new(data))
     end
     def to_s
       "#<#{self.class.name}:[#{x_pos.value}, #{z_pos.value}]>"
