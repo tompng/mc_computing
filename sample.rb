@@ -18,7 +18,10 @@ world = MCWorld::World.new file: infile
   next unless chunk
   16.times{|x|16.times{|z|
     y=chunk.height_map[x][z]
-    chunk[x,z,y-2]=MCWorld::Block.new(56,0,0,0)
+    (1..y).each do |y|
+      block = chunk[x,z,y]
+      chunk[x,z,y]=MCWorld::Block.new(56,0,0,0) if block && block.type==1
+    end
   }}
   chunk.light_populated.value = 0
 }}

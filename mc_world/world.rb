@@ -2,6 +2,7 @@ require 'zlib'
 module MCWorld
 end
 require_relative 'tag'
+require_relative 'block'
 require_relative 'chunk'
 class MCWorld::World
   attr_reader :file, :mcadata, :sectors

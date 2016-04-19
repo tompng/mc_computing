@@ -148,10 +148,4 @@ module MCWorld
       arr ? ((arr[index/2]&0xff)>>4*(1-index&1))&0xf : 0
     end
   end
-  class Block
-    attr_accessor :type, :sky_light, :block_light, :data
-    def initialize t, s, b, d
-      @type, @sky_light, @block_light, @data = t, s, b, d
-    end
-  end
 end
