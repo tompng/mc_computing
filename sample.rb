@@ -18,8 +18,9 @@ world = MCWorld::World.new file: infile
   next unless chunk
   16.times{|x|16.times{|z|
     y=chunk.height_map[x][z]
-    chunk[x,z,y-1]=MCWorld::Chunk::Block.new(19,0,0,0)
+    chunk[x,z,y-1]=MCWorld::Block.new(19,0,0,0)
   }}
+  chunk.light_populated.value = 0
 }}
 
 File.write outfile, world.encode
