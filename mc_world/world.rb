@@ -4,6 +4,8 @@ end
 require_relative 'tag'
 require_relative 'block'
 require_relative 'chunk'
+require_relative 'tile_entity'
+
 class MCWorld::World
   attr_reader :file, :mcadata, :sectors
   def to_s

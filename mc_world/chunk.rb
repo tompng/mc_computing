@@ -31,9 +31,9 @@ module MCWorld
   end
 
   class Chunk < AttributeNode
-    Attributes = %w(Entities InhabitedTime LastUpdate LightPopulated TerrainPopulated TileEntities TileTicks V xPos zPos)
+    Attributes = %w(Entities InhabitedTime LastUpdate LightPopulated TerrainPopulated TileTicks V xPos zPos)
     attr_accessor *Attributes.map{|key|AttributeNode.snake_case(key)}
-    attr_reader :height_map, :biomes, :version
+    attr_reader :height_map, :biomes, :version, :tile_entities
     def initialize data: nil, x: nil, z: nil
       if data
         hash = MCWorld::Tag.decode(data)
@@ -48,6 +48,7 @@ module MCWorld
           value = AttributeNode.construct level[key], self.class.name
           instance_variable_set name, value
         end
+        @tile_entities = MCWorld::TileEntity::Entities.new x_pos.value*16, z_pos.value*16, level['TileEntities'].value
       else
         @version = MCWorld::Tag::Integer.new 176
         @entities = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
@@ -55,13 +56,13 @@ module MCWorld
         @last_update = MCWorld::Tag::Long.new 0
         @light_populated = MCWorld::Tag::Byte.new 1
         @terrain_populated = MCWorld::Tag::Byte.new 1
-        @tile_entities = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
         @v = MCWorld::Tag::Byte.new 1
         @x_pos = MCWorld::Tag::Int.new x
         @z_pos = MCWorld::Tag::Int.new z
         @height_map = 16.times.map{16.times.map{0}}
         @biomes = 16.times.map{16.times.map{-1}}
         @sections = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
+        @tile_entities = MCWorld::TileEntity::Entities.new x_pos.value*16, z_pos.value*16, []
       end
     end
     def to_h
@@ -80,7 +81,7 @@ module MCWorld
         InhabitedTime: inhabited_time,
         xPos: x_pos,
         TerrainPopulated: terrain_populated,
-        TileEntities: tile_entities,
+        TileEntities: tile_entities.encode_data,
         Entities: entities
       }.select{|k,v|v}
       data = {'Level' => MCWorld::Tag::Hash.new(level)}
@@ -92,7 +93,7 @@ module MCWorld
     end
     def [] x, z, y
       section = @sections[y>>4]
-      index = ((y&0xf)<<8)|(x<<4)|z
+      index = ((y&0xf)<<8)|(z<<4)|x
       return nil unless section
       type = (block_halfbyte(section, 'Add', index)<<8)|block_byte(section, 'Blocks', index)
       return nil if type == 0
@@ -100,7 +101,7 @@ module MCWorld
       Block[type, data]
     end
     def []= x, z, y, block
-      si, index = y>>4, ((y&0xf)<<8)|(x<<4)|z
+      si, index = y>>4, ((y&0xf)<<8)|(z<<4)|x
       return if block.nil? && @sections[si].nil?
       section = @sections[si]
       section ||= (0..si).map{|i|
@@ -119,6 +120,7 @@ module MCWorld
       section['Blocks'][index] = block_id
       block_halfbyte_set section, 'Add', index, block_add if section['Add']
       block_halfbyte_set section, 'Data', index, block.data
+      tile_entities[x, z, y] = nil
     end
     def compact
       @sections.each do |section|
