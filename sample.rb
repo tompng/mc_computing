@@ -20,7 +20,8 @@ world = MCWorld::World.new file: infile
     y=chunk.height_map[x][z]
     (1..y).each do |y|
       block = chunk[x,z,y]
-      chunk[x,z,y]=MCWorld::Block.new(56,0,0,0) if block && block.type==1
+      next unless block
+      chunk[x,z,y]=MCWorld::Block::DiamondOre if block.type==MCWorld::Block::Stone
     end
   }}
   chunk.light_populated.value = 0

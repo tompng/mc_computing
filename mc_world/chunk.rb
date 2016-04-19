@@ -96,7 +96,8 @@ module MCWorld
       return nil unless section
       type = (block_halfbyte(section, 'Add', index)<<8)|block_byte(section, 'Blocks', index)
       return nil if type == 0
-      Block.new type, *%w(SkyLight BlockLight Data).map{|key|block_halfbyte(section, key, index)}
+      data = block_halfbyte section, 'Data', index
+      Block[type, data]
     end
     def []= x, z, y, block
       si, index = y>>4, ((y&0xf)<<8)|(x<<4)|z
@@ -111,20 +112,13 @@ module MCWorld
           'Data' => Tag::IntArray.new(2048.times.map{0})
         )
       }.last
-      data = {
-        'SkyLight' => (block ? block.sky_light : 0),
-        'BlockLight' => (block ? block.sky_light : 0),
-        'Data' => (block ? block.data : 0)
-      }
-      type = block ? block.type : 0
-      add = type >> 8
-      block = type & 0xff
-      data.each do |key, value|
-        block_halfbyte_set section, key, index, value
-      end
-      section.value['Add'] ||= Tag::IntArray.new(2048.times.map{0}) if add>0
-      block_halfbyte_set section, 'Add', index, add if section['Add']
-      section['Blocks'][index] = block
+      id = block ? block.id : 0
+      block_add = id >> 8
+      block_id = id & 0xff
+      section.value['Add'] ||= Tag::IntArray.new(2048.times.map{0}) if block_add>0
+      section['Blocks'][index] = block_id
+      block_halfbyte_set section, 'Add', index, block_add if section['Add']
+      block_halfbyte_set section, 'Data', index, block.data
     end
     def compact
       @sections.each do |section|
