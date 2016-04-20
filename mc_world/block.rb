@@ -15,14 +15,14 @@ module MCWorld::Block
     @blocks[[id, data]]
   end
   BlockDefinition.each do |name, value|
-    id, data = value.split(':').map(&:to_i)
+    id, data = value
     data ||= 0
     block = BlockData.new(name, id, data).freeze
     self.const_set name, block
     @blocks[[id, data]] = block
   end
   @blocks.keys.map(&:first).uniq.each do |id|
-    main = self[id,0]
+    main = 16.times.map{|data|self[id, data]}.compact.first
     16.times do |data|
       @blocks[[id,data]] ||= BlockData.new "#{main.name}[#{data}]", id, data
     end
