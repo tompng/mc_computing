@@ -22,3 +22,14 @@ p chunk[0,2,66] #=> MCWorld::Block::Grass
 }}
 chunk.light_populated.value = 0
 File.write outfile, world.encode
+
+world = MCWorld::World.new x: 0, z: 0
+(14..18).each{|cx|(14..18).each{|cz|
+  chunk = world[cx,cz]
+  16.times{|x|16.times{|z|
+    chunk.height_map[x][z]=64
+    64.times{|y|chunk[x,z,y]=rand<0.9 ? MCWorld::Block::Stone : MCWorld::Block[rand(1..30)]}
+  }}
+}}
+File.write outfile, world.encode
+binding.pry

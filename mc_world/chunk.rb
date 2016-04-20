@@ -50,11 +50,11 @@ module MCWorld
         end
         @tile_entities = MCWorld::TileEntity::Entities.new x_pos.value*16, z_pos.value*16, level['TileEntities'].value
       else
-        @version = MCWorld::Tag::Integer.new 176
+        @version = MCWorld::Tag::Int.new 176
         @entities = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
         @inhabited_time = MCWorld::Tag::Long.new 0
         @last_update = MCWorld::Tag::Long.new 0
-        @light_populated = MCWorld::Tag::Byte.new 1
+        @light_populated = MCWorld::Tag::Byte.new 0
         @terrain_populated = MCWorld::Tag::Byte.new 1
         @v = MCWorld::Tag::Byte.new 1
         @x_pos = MCWorld::Tag::Int.new x
@@ -107,16 +107,16 @@ module MCWorld
       section ||= (0..si).map{|i|
         @sections[i] ||= Tag::Hash.new(
           'Y' => Tag::Byte.new(i),
-          'Blocks' => Tag::IntArray.new(4096.times.map{0}),
-          'SkyLight' => Tag::IntArray.new(2048.times.map{0}),
-          'BlockLight' => Tag::IntArray.new(2048.times.map{0}),
-          'Data' => Tag::IntArray.new(2048.times.map{0})
+          'Blocks' => Tag::ByteArray.new(4096.times.map{0}),
+          'SkyLight' => Tag::ByteArray.new(2048.times.map{0}),
+          'BlockLight' => Tag::ByteArray.new(2048.times.map{0}),
+          'Data' => Tag::ByteArray.new(2048.times.map{0})
         )
       }.last
       id = block ? block.id : 0
       block_add = id >> 8
       block_id = id & 0xff
-      section.value['Add'] ||= Tag::IntArray.new(2048.times.map{0}) if block_add>0
+      section.value['Add'] ||= Tag::ByteArray.new(2048.times.map{0}) if block_add>0
       section['Blocks'][index] = block_id
       block_halfbyte_set section, 'Add', index, block_add if section['Add']
       block_halfbyte_set section, 'Data', index, block ? block.data : 0
