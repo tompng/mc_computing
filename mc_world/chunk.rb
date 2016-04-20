@@ -106,7 +106,7 @@ module MCWorld
       section = @sections[si]
       section ||= (0..si).map{|i|
         @sections[i] ||= Tag::Hash.new(
-          'Y' => Tag::Byte.new(si),
+          'Y' => Tag::Byte.new(i),
           'Blocks' => Tag::IntArray.new(4096.times.map{0}),
           'SkyLight' => Tag::IntArray.new(2048.times.map{0}),
           'BlockLight' => Tag::IntArray.new(2048.times.map{0}),
@@ -119,7 +119,7 @@ module MCWorld
       section.value['Add'] ||= Tag::IntArray.new(2048.times.map{0}) if block_add>0
       section['Blocks'][index] = block_id
       block_halfbyte_set section, 'Add', index, block_add if section['Add']
-      block_halfbyte_set section, 'Data', index, block.data
+      block_halfbyte_set section, 'Data', index, block ? block.data : 0
       tile_entities[x, z, y] = nil
     end
     def compact
@@ -136,12 +136,12 @@ module MCWorld
     def block_halfbyte_set section, key, index, value
       arr = section[key]
       val = arr[index/2]
-      arr[index/2]&=0xf<<4*(index&1)
-      arr[index/2]|=value<<4*(1-index&1)
+      arr[index/2]&=0xf<<4*(1-index&1)
+      arr[index/2]|=value<<4*(index&1)
     end
     def block_halfbyte section, key, index
       arr = section[key]
-      arr ? ((arr[index/2]&0xff)>>4*(1-index&1))&0xf : 0
+      arr ? ((arr[index/2]&0xff)>>4*(index&1))&0xf : 0
     end
   end
 end
