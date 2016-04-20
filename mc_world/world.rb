@@ -26,6 +26,10 @@ class MCWorld::World
         @mcadata[sector_id*4096+5,size-1] unless size.zero?
       end
       @timestamps = @mcadata[4096,4096].unpack 'N*'
+      if /r\.(?<xs>\d)\.(?<zs>\d)\.mca/ =~ file
+        x ||= xs.to_i
+        z ||= zs.to_i
+      end
     else
       @x, @z = x, z
       @timestamps = 4096.times.map{0}
