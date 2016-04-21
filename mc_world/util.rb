@@ -6,14 +6,10 @@ module MCWorld
   end
   module NamedParenMethod
     class ParenMethodProxy
-      def initialize ref, name
+      def initialize ref, name, get: nil, set: nil
         @ref, @name = ref, name
-      end
-      def [] *key
-        @ref.send "#{@name}_paren_get", *key
-      end
-      def []= *key, val
-        @ref.send "#{@name}_paren_set", *key, val
+        define_singleton_method :[], &get if get
+        define_singleton_method :[]=, &set if set
       end
       def to_s
         "#{@ref}:#{@name}[]"
@@ -22,12 +18,11 @@ module MCWorld
         to_s
       end
     end
-    def paren_method name
-      class_eval %(
-        def #{name}
-          @#{name} ||= ParenMethodProxy.new self, '#{name}'
-        end
-      )
+    def define_paren_method name, option
+      ivname = "@#{name}"
+      define_method name do
+        instance_variable_get(ivname) || instance_variable_set(ivname, ParenMethodProxy.new(self, name, option))
+      end
     end
   end
 end

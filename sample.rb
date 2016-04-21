@@ -3,7 +3,7 @@ require 'pry'
 infile='/Users/tomoya/Library/Application Support/minecraft/saves/rubytest/region/r.0.0.mca.backup'
 outfile='/Users/tomoya/Library/Application Support/minecraft/saves/rubytest/region/r.0.0.mca'
 world = MCWorld::World.new file: infile
-chunk = world[16,14]
+chunk = world.chunk 16, 14
 
 p chunk #=> #<MCWorld::Chunk:[16, 14]>
 p chunk.height_map[0][2] #=> 67
@@ -22,14 +22,17 @@ p chunk[0,2,66] #=> MCWorld::Block::Grass
 }}
 chunk.light_populated.value = 0
 File.write outfile, world.encode
+binding.pry
 
 world = MCWorld::World.new x: 0, z: 0
-(14..18).each{|cx|(14..18).each{|cz|
-  chunk = world[cx,cz]
-  16.times{|x|16.times{|z|
-    chunk.height_map[x][z]=64
-    64.times{|y|chunk[x,z,y]=rand<0.9 ? MCWorld::Block::Stone : MCWorld::Block[rand(1..30)]}
-  }}
+range = 14*16...18*16
+range.each{|x|range.each{|z|
+  64.times{|y|world[x,z,y]=rand<0.9 ? MCWorld::Block::Stone : MCWorld::Block[rand(1..30)]}
+}}
+
+(12*16...20*16).each{|x|(12*16...20*16).each{|z|
+  32.times{|y|
+    world[x,z,y]= y<z/16 ? MCWorld::Block::Bedrock : nil
+  }
 }}
 File.write outfile, world.encode
-binding.pry

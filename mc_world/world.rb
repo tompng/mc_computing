@@ -39,7 +39,23 @@ class MCWorld::World
     @chunks = {}
   end
 
-  def [] x, z
+  def []= x, z, y, block
+    chunk(x/16, z/16)[x%16,z%16,y]=block
+  end
+  def [] x, z, y
+    chunk(x/16, z/16)[x%16,z%16,y]
+  end
+  extend MCWorld::NamedParenMethod
+  define_paren_method(
+    :tile_entities,
+    get: ->(x,z,y){
+      chunk(x/16, z/16).tile_entities[x%16, z%16, y]
+    },
+    set: ->(x,z,y,v){
+      chunk(x/16, z/16).tile_entities[x%16, z%16, y] = v
+    }
+  )
+  def chunk x, z
     if @file
       sector = @sectors[32*z+x]
       @chunks[[x,z]] ||= MCWorld::Chunk.new data: Zlib.inflate(sector) if sector
@@ -48,7 +64,7 @@ class MCWorld::World
     end
   end
 
-  def release x, z
+  def release_chunk x, z
     @sections[32*z+x] = @chunks.delete([x,z]).encode
   end
 
