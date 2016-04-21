@@ -1,10 +1,4 @@
 module MCWorld
-  module Util
-    def self.snake_case name
-      name.gsub(/[A-Z]+/){|c|"_#{[c[0...-1],c[-1]].reject(&:empty?).join('_')}"}.downcase.gsub(/^_/,'')
-    end
-  end
-
   class Chunk
     Attributes = %w(Entities InhabitedTime LastUpdate LightPopulated TerrainPopulated TileTicks V xPos zPos)
     attr_accessor *Attributes.map{|key|Util.snake_case(key)}

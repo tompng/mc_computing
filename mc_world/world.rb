@@ -1,6 +1,7 @@
 require 'zlib'
 module MCWorld
 end
+require_relative 'util'
 require_relative 'tag'
 require_relative 'block'
 require_relative 'chunk'
