@@ -1,38 +1,13 @@
 module MCWorld
-  class AttributeNode
-    def initialize hash, name
-      define_singleton_method(:to_h){hash}
-      values = hash.map do |key, value|
-        [key, AttributeNode.snake_case(key), value]
-      end
-      cache = {}
-      define_singleton_method(:to_s){"#<#{name}:[#{values.map{|a|a[1]}.join(', ')}]>"}
-      values.each do |key, method, value|
-        define_singleton_method(method){
-          cache[method] ||= AttributeNode.construct value.value, "#{name}:#{key}"
-        }
-      end
-    end
-    def inspect;to_s;end
-    def self.construct value, name
-      case value
-      when Hash
-        new value, name
-      when Array
-        classname = name.gsub(/ies$/,'y').gsub(/s$/,'')
-        value.map{|v|construct v.value, classname}
-      else
-        value
-      end
-    end
+  module Util
     def self.snake_case name
       name.gsub(/[A-Z]+/){|c|"_#{[c[0...-1],c[-1]].reject(&:empty?).join('_')}"}.downcase.gsub(/^_/,'')
     end
   end
 
-  class Chunk < AttributeNode
+  class Chunk
     Attributes = %w(Entities InhabitedTime LastUpdate LightPopulated TerrainPopulated TileTicks V xPos zPos)
-    attr_accessor *Attributes.map{|key|AttributeNode.snake_case(key)}
+    attr_accessor *Attributes.map{|key|Util.snake_case(key)}
     attr_reader :height_map, :biomes, :version, :tile_entities
     def initialize data: nil, x: nil, z: nil
       if data
@@ -44,9 +19,7 @@ module MCWorld
         @biomes = level['Biomes'].value.each_slice(16).to_a
         @sections = level['Sections']
         Attributes.each do |key|
-          name = "@#{AttributeNode.snake_case(key)}"
-          value = AttributeNode.construct level[key], self.class.name
-          instance_variable_set name, value
+          instance_variable_set "@#{Util.snake_case(key)}", level[key]
         end
         @tile_entities = MCWorld::TileEntity::Entities.new x_pos.value*16, z_pos.value*16, level['TileEntities'].value
       else
@@ -90,6 +63,9 @@ module MCWorld
     end
     def to_s
       "#<#{self.class.name}:[#{x_pos.value}, #{z_pos.value}]>"
+    end
+    def inspect
+      to_s
     end
     def [] x, z, y
       section = @sections[y>>4]
