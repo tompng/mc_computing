@@ -49,8 +49,9 @@ module MCWorld::TileEntity
     end
     def self.chest lock: '', items: []
       slot_items = 27.times.map{|slot|
-        item = items[i]
+        item = items[slot]
         next unless item
+        item = {id: item} if String === item
         MCWorld::Tag::Hash.new(
           'id' => MCWorld::Tag::String.new(item[:id]),
           'Slot' => MCWorld::Tag::Byte.new(slot),

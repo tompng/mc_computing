@@ -21,6 +21,14 @@ range.each{|x|range.each{|z|
     world[x,z,64] = MCWorld::Block::Chest[rand(2..5)]
     world.tile_entities[x,z,64]=MCWorld::TileEntity::Chest.end_city_treasure_chest
   end
+  if rand < 0.01
+    world[x,z,64] = MCWorld::Block::TrappedChest[rand(2..5)]
+    world.tile_entities[x,z,64]=MCWorld::TileEntity::Chest.chest items: [
+      'minecraft:elytra',
+      {id: 'minecraft:diamond_block', count: 64},
+      {id: 'minecraft:iron_block', count: 64}
+    ]*9
+  end
 }}
 
 range2 = (12*16...20*16)
