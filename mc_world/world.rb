@@ -32,10 +32,10 @@ class MCWorld::World
         z ||= zs.to_i
       end
     else
-      @x, @z = x, z
       @timestamps = 1024.times.map{0}
       @sectors = 1024.times.map{nil}
     end
+    @x, @z = x, z
     @chunks = {}
   end
 
@@ -48,19 +48,21 @@ class MCWorld::World
   extend MCWorld::NamedParenMethod
   define_paren_method(
     :tile_entities,
-    get: ->(x,z,y){
-      chunk(x/16, z/16).tile_entities[x%16, z%16, y]
-    },
-    set: ->(x,z,y,v){
-      chunk(x/16, z/16).tile_entities[x%16, z%16, y] = v
-    }
+    get: ->(x,z,y){chunk(x/16, z/16).tile_entities[x%16, z%16, y]},
+    set: ->(x,z,y,v){chunk(x/16, z/16).tile_entities[x%16, z%16, y] = v}
+  )
+  define_paren_method(
+    :height_map,
+    get: ->(x,z){chunk(x/16, z/16).height_map[x%16][z%16]},
+    set: ->(x,z,v){chunk(x/16, z/16).height_map[x%16][z%16] = v},
   )
   def chunk x, z
-    if @file
-      sector = @sectors[32*z+x]
-      @chunks[[x,z]] ||= MCWorld::Chunk.new data: Zlib.inflate(sector) if sector
+    chunk = @chunks[[x,z]]
+    return chunk if chunk
+    if sector = @sectors[32*z+x]
+      @chunks[[x,z]] = MCWorld::Chunk.new data: Zlib.inflate(sector)
     else
-      @chunks[[x,z]] ||= MCWorld::Chunk.new x: @x*32+x, z: @z*32+z
+      @chunks[[x,z]] = MCWorld::Chunk.new x: @x*32+x, z: @z*32+z
     end
   end
 
