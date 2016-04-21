@@ -228,7 +228,7 @@ module MCWorld::Block
     Cocoa: [127],
     SandstoneStairs: [128],
     EmeraldOre: [129],
-    EnderChest: [130],
+    EnderChest: [130,2],
     TripwireHook: [131],
     Tripwire: [132],
     EmeraldBlock: [133],

@@ -9,7 +9,7 @@ module MCWorld
       def initialize ref, name, get: nil, set: nil
         @ref, @name = ref, name
         define_singleton_method(:[]){|*args|@ref.instance_exec *args, &get} if get
-        define_singleton_method(:[]=){|*args|@ref.instane_exec *args, &set} if set
+        define_singleton_method(:[]=){|*args|@ref.instance_exec *args, &set} if set
       end
       def to_s
         "#{@ref}:#{@name}[]"
