@@ -33,7 +33,7 @@ class MCWorld::World
       end
     else
       @x, @z = x, z
-      @timestamps = 4096.times.map{0}
+      @timestamps = 1024.times.map{0}
       @sectors = 1024.times.map{nil}
     end
     @chunks = {}
