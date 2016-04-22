@@ -1,9 +1,9 @@
 ## Minecraft world file(.mca) reader/writer
-%|
+[]
+(%|)
 ```ruby
-#|
+#|)
 require './mc_world/world'
-require 'pry'
 infile='/Users/tomoya/Library/Application Support/minecraft/saves/rubytest/region/r.0.0.mca.backup'
 outfile='/Users/tomoya/Library/Application Support/minecraft/saves/rubytest/region/r.0.0.mca'
 world = MCWorld::World.new file: infile
@@ -41,6 +41,5 @@ range2.each{|x|range2.each{|z|
   world[x,z,0] = MCWorld::Block::Bedrock
 }}
 File.write outfile, world.encode
-binding.pry
 __END__
 ```
