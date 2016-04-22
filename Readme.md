@@ -1,3 +1,7 @@
+## Minecraft world file(.mca) reader/writer
+%|
+```ruby
+#|
 require './mc_world/world'
 require 'pry'
 infile='/Users/tomoya/Library/Application Support/minecraft/saves/rubytest/region/r.0.0.mca.backup'
@@ -38,3 +42,5 @@ range2.each{|x|range2.each{|z|
 }}
 File.write outfile, world.encode
 binding.pry
+__END__
+```
