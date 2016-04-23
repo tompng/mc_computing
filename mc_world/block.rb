@@ -12,7 +12,7 @@ module MCWorld::Block
   end
   @blocks = {}
   def self.[] id, data=0
-    @blocks[[id, data]]
+    @blocks[[id, data]] ||= (BlockData.new "Undefined[#{id},#{data}]", id, data if id > 0)
   end
   BlockDefinition.each do |name, value|
     id, data = value
@@ -22,7 +22,7 @@ module MCWorld::Block
     @blocks[[id, data]] = block
   end
   @blocks.keys.map(&:first).uniq.each do |id|
-    main = 16.times.map{|data|self[id, data]}.compact.first
+    main = 16.times.map{|data|@blocks[[id, data]]}.compact.first
     16.times do |data|
       @blocks[[id,data]] ||= BlockData.new "#{main.name}[#{data}]", id, data
     end

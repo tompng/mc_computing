@@ -11,7 +11,7 @@ module MCWorld
         @hash = hash
         @height_map = level['HeightMap'].value.each_slice(16).to_a
         @biomes = level['Biomes'].value.each_slice(16).to_a
-        @sections = level['Sections']
+        parse_sections level['Sections']
         Attributes.each do |key|
           instance_variable_set "@#{Util.snake_case(key)}", level[key]
         end
@@ -28,10 +28,11 @@ module MCWorld
         @z_pos = MCWorld::Tag::Int.new z
         @height_map = 16.times.map{16.times.map{0}}
         @biomes = 16.times.map{16.times.map{-1}}
-        @sections = MCWorld::Tag::List.new MCWorld::Tag::Hash, []
+        @blocks = []
         @tile_entities = MCWorld::TileEntity::Entities.new x_pos.value*16, z_pos.value*16, []
       end
     end
+
     def to_h
       @hash
     end
@@ -41,7 +42,7 @@ module MCWorld
         zPos: z_pos,
         HeightMap: MCWorld::Tag::IntArray.new(height_map.flatten),
         TileTicks: tile_ticks,
-        Sections: @sections,
+        Sections: sections,
         LastUpdate: last_update,
         V: v,
         Biomes: MCWorld::Tag::ByteArray.new(biomes.flatten),
@@ -62,56 +63,72 @@ module MCWorld
       to_s
     end
     def [] x, z, y
-      section = @sections[y>>4]
-      index = ((y&0xf)<<8)|(z<<4)|x
-      return nil unless section
-      type = (block_halfbyte(section, 'Add', index)<<8)|block_byte(section, 'Blocks', index)
-      return nil if type == 0
-      data = block_halfbyte section, 'Data', index
-      Block[type, data]
+      xzmap = @blocks[y]
+      xzmap && xzmap[x][z]
     end
     def []= x, z, y, block
-      si, index = y>>4, ((y&0xf)<<8)|(z<<4)|x
-      return if block.nil? && @sections[si].nil?
-      section = @sections[si]
-      section ||= (0..si).map{|i|
-        @sections[i] ||= Tag::Hash.new(
-          'Y' => Tag::Byte.new(i),
-          'Blocks' => Tag::ByteArray.new(4096.times.map{0}),
-          'SkyLight' => Tag::ByteArray.new(2048.times.map{0}),
-          'BlockLight' => Tag::ByteArray.new(2048.times.map{0}),
-          'Data' => Tag::ByteArray.new(2048.times.map{0})
-        )
-      }.last
-      id = block ? block.id : 0
-      block_add = id >> 8
-      block_id = id & 0xff
-      section.value['Add'] ||= Tag::ByteArray.new(2048.times.map{0}) if block_add>0
-      section['Blocks'][index] = block_id
-      block_halfbyte_set section, 'Add', index, block_add if section['Add']
-      block_halfbyte_set section, 'Data', index, block ? block.data : 0
+      (@blocks[y] ||= 16.times.map{[]})[x][z]=block
       tile_entities[x, z, y] = nil
     end
-    def compact
-      @sections.each do |section|
-        section.value.delete 'Add' if section['Add'].all? &:zero?
-      end
-      @sections.pop while @sections.last['Add'].nil? && sections.last['Blocks'].all?(&:zero?)
-    end
     private
-    def block_byte section, key, index
-      arr = section[key]
-      arr ? arr[index]&0xff : 0
+    def parse_sections sections
+      @blocks = []
+      sections.value.each_with_index do |section, yindex|
+        id_array = section['Blocks']
+        add_array = section['Add']
+        data_array = section['Data']
+        16.times.each do |y|
+          xzmap = @blocks[16*yindex+y] ||= []
+          16.times.each do |x|
+            xzmap[x] ||= []
+            16.times.each do |z|
+              index = (y<<8)|(z<<4)|x
+              shift = 4*(index&1)
+              id = id_array[index]
+              add = add_array ? (add_array[index/2]>>shift)&0xf : 0
+              data = (data_array[index/2]>>shift)&0xf
+              xzmap[x][z] = MCWorld::Block[(add<<8)|id, data]
+            end
+          end
+        end
+      end
     end
-    def block_halfbyte_set section, key, index, value
-      arr = section[key]
-      val = arr[index/2]
-      arr[index/2]&=0xf<<4*(1-index&1)
-      arr[index/2]|=value<<4*(index&1)
-    end
-    def block_halfbyte section, key, index
-      arr = section[key]
-      arr ? ((arr[index/2]&0xff)>>4*(index&1))&0xf : 0
+    def sections
+      MCWorld::Tag::List.new MCWorld::Tag::Hash, (0..@blocks.size>>4).map{|yi|
+        id_array = 4096.times.map{0}
+        add_array = nil
+        data_array = 2048.times.map{0}
+        16.times.map{|y|
+          16.times.map{|x|
+            16.times.map{|z|
+              xzmap = @blocks[16*yi+y]
+              block = xzmap && xzmap[x][z]
+              next unless block
+              index = (y<<8)|(z<<4)|x
+              shift = 4*(index&1)
+              id = block.id&0xff
+              add = block.id>>8
+              id_array[index] = id
+              data_array[index/2]&=0xf<<4*(1-index&1)
+              data_array[index/2]|=block.data<<4*(index&1)
+              if add > 0
+                add_array ||= 2048.times.map{0}
+                add_array[index/2]&=0xf<<4*(1-index&1)
+                add_array[index/2]|=add<<4*(index&1)
+              end
+            }
+          }
+        }
+        section_hash = {
+          'Y' => Tag::Byte.new(yi),
+          'Blocks' => Tag::ByteArray.new(id_array),
+          'SkyLight' => Tag::ByteArray.new(2048.times.map{0}),
+          'BlockLight' => Tag::ByteArray.new(2048.times.map{0}),
+          'Data' => Tag::ByteArray.new(data_array),
+        }
+        section_hash['Add'] = Tag::ByteArray.new add_array if add_array
+        Tag::Hash.new section_hash
+      }
     end
   end
 end
