@@ -9,6 +9,9 @@ module MCWorld::Block
     def inspect;to_s;end
     def [] data;MCWorld::Block[id,data];end
     def to_s;"#{MCWorld::Block.name}::#{@name}";end
+    def sky_light_transparent?
+      MCWorld::Block::SkyLightTransparentBlockIds.include? id
+    end
   end
   @blocks = {}
   def self.[] id, data=0

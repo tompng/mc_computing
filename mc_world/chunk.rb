@@ -36,7 +36,17 @@ module MCWorld
     def to_h
       @hash
     end
+    def recalc_height_map
+      ymax = @blocks.size
+      16.times{|x|16.times{|z|
+        height = (0..ymax).reverse_each.find{|y|
+          (level = @blocks[y]) && (block = level[x][z]) && !block.sky_light_transparent?
+        }
+        height_map[x][z] = height ? height+1 : 0
+      }}
+    end
     def encode
+      recalc_height_map
       level = {
         LightPopulated: light_populated,
         zPos: z_pos,
