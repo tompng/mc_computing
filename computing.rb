@@ -179,10 +179,23 @@ char: 5x8 24x12 120x96
 
 
 DSL:
-label :hoge
-var[:x] = var[:x]
-var.x
-var.y[var.z]=
+variable(:x, :y, :z)
+array(y: 100)
+var.x = var.y
+var.y = var.x[10]
+var.x = var.y + var.z
+exec_if(var.a + var.b){}.else{}
+exec_while(var.y == var.z){}
 
 
-jump :fuga
+val_set_reg_#{n} val -> reg             clone clear_redstone next
+bin_op_#{type}   result -> val          set_callback set_redstone clear_redstone | next_command
+val_set_ref      val -> ref             clone clear_redstone next
+const_set_ref    const -> ref           clone clear_redstone next | ref_blocks
+const_set_val    const -> val           clone clear_redstone next | val_blocks
+mem_get          mem[ref] -> val        get_prepare set_callback set_redstone clear_redstone | next_command
+mem_set          val -> mem[ref]        get_prepare set_callback set_redstone clear_redstone | next_command
+const_mem_set    val -> mem[const]      clone clear_redstone next | const_blocks
+const_mem_get    mem[const] -> val      clone clear_redstone next | const_blocks
+jump                                    clear_redstone next
+jump_if                                 set_callback1 set_callback2 set_redstone clear_redstone | callback1 next
