@@ -94,7 +94,7 @@ module MCWorld
             16.times.each do |z|
               index = (y<<8)|(z<<4)|x
               shift = 4*(index&1)
-              id = id_array[index]
+              id = id_array[index]&0xff
               add = add_array ? (add_array[index/2]>>shift)&0xf : 0
               data = (data_array[index/2]>>shift)&0xf
               xzmap[x][z] = MCWorld::Block[(add<<8)|id, data]
