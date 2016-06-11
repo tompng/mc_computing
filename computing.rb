@@ -11,7 +11,8 @@ class Computer
   OP_DONE = {x:0, y:128, z: 128-1}
   OP_ADD = {x: 16, y: 128, z: 128}
   OP_ADD_CALLBACK = {}
-
+  OP_MULT = {x:32, y:128, z:128}
+  OP_MULT_CALLBACK = {}
   DISPLAY = {x: 0, y:0, z:0, cw: 5, ch: 8, wn: 24, hn: 12}
   def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
@@ -143,6 +144,21 @@ class Computer
       commands << "fill #{pos[addr2]} #{pos[addr3, VALUE_BITS]} air"
     end
 
+    def self.op_mult_commands addr
+      pos=->(base, i=0){"#{base[:x]} #{base[:y]} #{base[:z]+i}"}
+      posup=->(base, i=0){"#{base[:x]} #{base[:y]+1} #{base[:z]+i}"}
+      addr1 = addr
+      addr2 = addr1.merge x: addr1[:x]+1
+      add = op_add_commands addr.merge(y: addr[:y]+1)
+      commands = []
+      32.times{|i|
+        commands << "testforblock #{pos[addr1, i]} stone"
+        commands << ["clone #{pos[addr2]} #{pos[addr2, VALUE_BITS-1]} #{posup[addr2, i]}", true]
+        commands.push *add
+      }
+      commands << "clone #{posup[addr1]} #{posup[addr2, VALUE_BITS-1]} #{pos[addr1]}"
+      commands << "fill #{posup[addr1]} #{posup[addr1, VALUE_BITS-1]} air"
+    end
 
     def self.gen_seek_blocks mode
       raise 'mode get/set' unless [:get, :set].include? mode
@@ -210,6 +226,7 @@ class Computer
         }
       end
       OP_ADD_CALLBACK.merge! set_command_blocks(world, op_add_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_ADD);
+      OP_MULT_CALLBACK.merge! set_command_blocks(world, op_mult_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_MULT);
     end
     def self.mem_addr_coord addr
       x = 0
