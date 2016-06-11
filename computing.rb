@@ -1,10 +1,6 @@
 require 'pry'
 require_relative 'mc_world/world'
-infile='/Users/tomoya/Library/Application Support/minecraft/saves/command/region/r.0.0.mca'
-outfile='/Users/tomoya/Library/Application Support/minecraft/saves/rubytest/region/r.0.0.mca'
-exworld = MCWorld::World.new file: infile
-exworld[13,8,71]
-exworld.pry
+outfile='/Users/tomoya/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca'
 class Computer
   VALUE_BITS = 32
   MEM_ADDRESS = {x: 0, y: 0, z: 128}
@@ -14,9 +10,10 @@ class Computer
   MEM_VALUE = {x:3, y: 128, z: 128}
   OP_DONE = {x:4, y:128, z: 128}
   DISPLAY = {x: 0, y:0, z:0, cw: 5, ch: 8, wn: 24, hn: 12}
-  def initialize
+  def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
     Internal.prepare @world
+    instance_eval &block
   end
 
   def mem_direct_set_command addr, src: MEM_VALUE
@@ -50,7 +47,7 @@ class Computer
   def mem_op_set_callback_command pos
     pos, size = Internal.seek_blocks_info mode
     [
-      :clone
+      :clone,
       "#{pos[:x]} #{pos[:y]} #{pos[:z]}",
       "#{pos[:x]} #{pos[:y]} #{pos[:z]}",
       "#{MEM_ADDRESS[:x]} #{MEM_ADDRESS[:y]} #{MEM_ADDRESS[:z]-size+1}"
@@ -61,18 +58,17 @@ class Computer
   end
 
   module Internal
-    def self.command_data command, powered: false,
-      {
+    def self.command_data command, powered: false
+      MCWorld::Tag::Hash.new(
         'conditionMet' => MCWorld::Tag::Byte.new(0),
         'auto' => MCWorld::Tag::Byte.new(0),
         'customName' => MCWorld::Tag::String.new('@'),
-        'auto' => MCWorld::Tag::Byte.new(0),
         'powered' => MCWorld::Tag::Byte.new(powered ? 1 : 0),
         'Command' => MCWorld::Tag::String.new(command),
         'id' => MCWorld::Tag::String.new('Control'),
         'SuccessCount' => MCWorld::Tag::Int.new(0),
         'TrackOutput' => MCWorld::Tag::Int.new(0),
-      }
+      )
     end
     def self.gen_seek_blocks mode
       raise 'mode get/set' unless [:get, :set].include? mode
@@ -87,8 +83,8 @@ class Computer
           next
         end
         block = (chain ? MCWorld::Block::ChainCommandBlock : MCWorld::Block::CommandBlock)
-        data = MCWorld::Block::Data::Z_MINUS | (cond ? 0 : MCWorld::Block::DATA::MASK)
-        blocks << = [block[data], command_data(command)]
+        data = MCWorld::Block::Data::Z_MINUS | (cond ? 0 : MCWorld::Block::Data::MASK)
+        blocks << [block[data], command_data(command)]
       }
       add[nil]
       7.times{|i|
@@ -119,7 +115,7 @@ class Computer
       blocks.reverse
     end
     def self.seek_get_blocks;@seek_get_blocks||=gen_seek_blocks :get;end
-    def self.seek_get_blocks;@seek_set_blocks||=gen_seek_blocks :set;end
+    def self.seek_set_blocks;@seek_set_blocks||=gen_seek_blocks :set;end
     def self.seek_blocks_info mode
       if mode == :get
         [SEEK_GET, seek_get_blocks.size]
@@ -128,17 +124,17 @@ class Computer
       end
     end
     def self.prepare world
-      (128/16).times.to_a.repeated_permutation{|i,j,k|
+      (128/16).times.to_a.repeated_permutation(3){|i,j,k|
         world[i*16+MEM_ADDRESS[:x],j*16+MEM_ADDRESS[:y],k*16+MEM_ADDRESS[:z]]=nil
         world[i*16+15+MEM_ADDRESS[:x],j*16+15+MEM_ADDRESS[:y],k*16+15+MEM_ADDRESS[:z]]=nil
       }
-      [[seek_blocks(:get), SEEK_GET], [seek_blocks(:set), SEEK_SET]].each do |block_tile_entities, pos|
+      [[seek_get_blocks, SEEK_GET], [seek_set_blocks, SEEK_SET]].each do |block_tile_entities, pos|
         block_tile_entities.each_with_index{|bt, i|
           block, tile_entity = bt
           world[pos[:x],pos[:y],pos[:z]+i] = block
           world.tile_entities[pos[:x],pos[:y],pos[:z]+i] = tile_entity
         }
-      }
+      end
     end
     def self.mem_addr_coord addr
       x = 0
@@ -153,6 +149,10 @@ class Computer
       {x: MEM_ADDRESS[:x]+x, y: MEM_ADDRESS[:y]+y, z: MEM_ADDRESS[:z]+z}
     end
   end
+end
+
+Computer.new do
+  File.write outfile, @world.encode
 end
 
 __END__
