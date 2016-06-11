@@ -1,8 +1,8 @@
 require_relative 'block_definition'
 module MCWorld::Block
   module Data
-    UP = 0
-    DOWN = 1
+    Y_MINUS = 0
+    Y_PLUS = 1
     Z_MINUS = 2
     Z_PLUS = 3
     X_MINUS = 4

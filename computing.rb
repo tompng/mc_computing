@@ -8,7 +8,10 @@ class Computer
   SEEK_SET = {x: 1, y:128, z:128}
   MEM_REF = {x: 2, y: 128, z: 128}
   MEM_VALUE = {x:3, y: 128, z: 128}
-  OP_DONE = {x:4, y:128, z: 128}
+  OP_DONE = {x:0, y:128, z: 128-1}
+  OP_ADD = {x: 16, y: 128, z: 128}
+  OP_ADD_CALLBACK = {}
+
   DISPLAY = {x: 0, y:0, z:0, cw: 5, ch: 8, wn: 24, hn: 12}
   def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
@@ -70,6 +73,77 @@ class Computer
         'TrackOutput' => MCWorld::Tag::Int.new(0),
       )
     end
+    def self.clear_value_command
+      x, y, z = MEM_VALUE[:x], MEM_VALUE[:y], MEM_VALUE[:z]
+      "fill #{x} #{y} #{z} #{x} #{y} #{z+VALUE_BITS} air"
+    end
+    def self.copy_value_to_ref_command
+      x, y, z = MEM_VALUE[:x], MEM_VALUE[:y], MEM_VALUE[:z]
+      "clone #{x} #{y} #{z} #{x} #{y} #{z+VALUE_BITS} #{MEM_REF[:x]} #{MEM_REF[:y]} #{MEM_REF[:z]}"
+    end
+    def self.set_command_blocks world, commands, pos
+      x, y, z = 0, 0, 0
+      xdir, ydir = 1, 1
+      commands = [nil, *commands]
+      commands.each_with_index do |op, i|
+        command, cond = op
+        px, py, pz = x, y, z
+        block_x, block_y, block_z = block_pos = [pos[:x]+x, pos[:z]+z, pos[:y]+y]
+        flag = false
+        (1..16).each{|j|
+          break if (x+xdir*j)%16==15
+          flag = j and break if commands[i+j].nil? || commands[i+j+1].nil?
+          flag = j and break if commands[i+j].size!=2&&commands[i+j+1].size!=2
+        }
+        if flag
+          x += xdir
+        elsif (y+ydir) % 16 != 15
+          xdir = -xdir
+          y += ydir
+        else
+          ydir = -ydir
+          xdir = -xdir
+          z += 1
+        end
+        data = 0
+        data |= MCWorld::Block::Data::X_MINUS if px > x
+        data |= MCWorld::Block::Data::X_PLUS if px < x
+        data |= MCWorld::Block::Data::Y_MINUS if py > y
+        data |= MCWorld::Block::Data::Y_PLUS if py < y
+        data |= MCWorld::Block::Data::Z_PLUS if pz < z
+        # binding.pry
+        if command
+          block = i==1 ? MCWorld::Block::CommandBlock : MCWorld::Block::ChainCommandBlock;
+          data |= MCWorld::Block::Data::MASK if cond
+          world[*block_pos] = block[data]
+          world.tile_entities[*block_pos] = command_data(command, redstone: i==1)
+        end
+      end
+      {x: pos[:x]+x, y: pos[:z]+z, z: pos[:y]+y}
+    end
+    def self.op_add_commands addr
+      commands = []
+      addr1 = addr
+      addr2 = addr1.merge x: addr1[:x]+1
+      addr3 = addr1.merge x: addr1[:x]+2
+      pos=->(base, i=0){
+        "#{base[:x]} #{base[:y]} #{base[:z]+i}"
+      }
+      32.times{|i|
+        commands << "testforblocks #{pos[addr2, i]} #{pos[addr2, i]} #{pos[addr3, i]}"
+        commands << ["clone #{pos[addr3, i]} #{pos[addr3, i]} #{pos[addr3, i+1]}", true]
+        commands << ["fill #{pos[addr2, i]} #{pos[addr3, i]} air", true]
+        commands << "clone #{pos[addr3, i]} #{pos[addr3, i]} #{pos[addr2, i]} masked"
+        commands << "testforblocks #{pos[addr1, i]} #{pos[addr1, i]} #{pos[addr2, i]}"
+        commands << ["clone #{pos[addr2, i]} #{pos[addr2, i]} #{pos[addr3, i]}", true]
+        commands << ["fill #{pos[addr1, i]} #{pos[addr2, i]} air", true]
+        commands << ["clone #{pos[addr3, i]} #{pos[addr3, i]} #{pos[addr3, i+1]} masked", true]
+        commands << "clone #{pos[addr2, i]} #{pos[addr2, i]} #{pos[addr1, i]} masked"
+      }
+      commands << "fill #{pos[addr2]} #{pos[addr3, VALUE_BITS]} air"
+    end
+
+
     def self.gen_seek_blocks mode
       raise 'mode get/set' unless [:get, :set].include? mode
       size = 1+7*12+12+2
@@ -109,9 +183,9 @@ class Computer
         end
         add["testforblock #{x} #{y} #{z+15} #{i/2==1 ? 'stone' : 'air'}", chain: true, cond: true]
         if mode == :get
-          add["clone ~ ~ #{memz+VALUE_BITS*i} ~ ~ #{memz+VALUE_BITS*(i+1)} #{vx} #{vy} #{vz} replace", chain: true, cond: true]
+          add["clone ~ ~ #{memz+VALUE_BITS*i} ~ ~ #{memz+VALUE_BITS*(i+1)} #{vx} #{vy} #{vz}", chain: true, cond: true]
         else
-          add["clone #{vx} #{vy} #{vz} #{vx} #{vy} #{vz+VALUE_BITS} ~ ~ #{memz+VALUE_BITS*i} replace", chain: true, cond: true]
+          add["clone #{vx} #{vy} #{vz} #{vx} #{vy} #{vz+VALUE_BITS} ~ ~ #{memz+VALUE_BITS*i}", chain: true, cond: true]
         end
       }
       add["setblock #{OP_DONE[:x]} #{OP_DONE[:y]} #{OP_DONE[:z]} redstone_block", chain: true]
@@ -135,6 +209,7 @@ class Computer
           world.tile_entities[pos[:x],pos[:z]+i,pos[:y]] = tile_entity
         }
       end
+      OP_ADD_CALLBACK.merge! set_command_blocks(world, op_add_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_ADD);
     end
     def self.mem_addr_coord addr
       x = 0
