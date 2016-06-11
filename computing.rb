@@ -160,6 +160,41 @@ class Computer
       commands << "fill #{posup[addr1]} #{posup[addr1, VALUE_BITS-1]} air"
     end
 
+    def self.op_gt_commands addr, eq: false
+      pos=->(base, i=0){"#{base[:x]} #{base[:y]} #{base[:z]+i}"}
+      addr1 = addr
+      addr2 = addr1.merge x: addr1[:x]+1
+      out1 = pos[addr1.merge y: addr1[:y]+1]
+      out2 = pos[addr1.merge y: addr2[:y]+1]
+      commands = []
+      if eq
+        commands << "testforblocks #{pos[addr1]} #{pos[addr1, VALUE_BITS-1]} #{pos[addr2]}"
+        commands << ["fill #{pos[addr1]} #{pos[addr2, VALUE_BITS-1]} air", true]
+        commands << "testforblocks #{pos[addr1]} #{pos[addr1, VALUE_BITS-1]} #{pos[addr2]}"
+        commands << ["setblock #{pos[addr1]} stone", true]
+      end
+      commands << "testforblock #{pos[addr1, VALUE_BITS-1]} stone"
+      commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} air", true]
+      commands << ["setblock #{out1} stone", true]
+      commands << "testforblock #{pos[addr1, VALUE_BITS-1]} air"
+      commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} stone", true]
+      commands << ["setblock #{out2} stone", true]
+      (31..0).each do |i|
+        2.times{|j|
+          commands << "testforblock #{[out2, out1][j]} air"
+          commands << ["testforblock #{pos[addr1, i]} #{[:stone, :air][j]}", true]
+          commands << ["testforblock #{pos[addr2, i]} #{[:air, :stone][j]}", true]
+          commands << ["setblock #{[out1, out2][j]} stone", true]
+        }
+      end
+      commands << "testforblock #{pos[addr1, VALUE_BITS-1]} stone"
+      commands << ["clone #{out2} #{out2} #{out1}", true]
+      commands << "fill #{pos[addr1]} #{pos[addr2, VALUE_BITS-1]} air"
+      commands << "clone #{out1} #{out1} #{pos[addr1]}"
+      commands << "fill #{out1} #{out2} air"
+      commands
+    end
+
     def self.gen_seek_blocks mode
       raise 'mode get/set' unless [:get, :set].include? mode
       size = 1+7*12+12+2
