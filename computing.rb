@@ -1,5 +1,6 @@
 require 'pry'
 require_relative 'mc_world/world'
+require 'chunky_png'
 outfile='/Users/tomoya/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca'
 class Computer
   VALUE_BITS = 32
@@ -14,12 +15,13 @@ class Computer
   OP_MULT = {x:32, y:128, z:128}
   OP_MULT_CALLBACK = {}
   DISPLAY = {
-    char: {w: 5, h: 8, wn: 24, hn: 12},
+    char: {w: 6, h: 10, wn: 20, hn: 12},
     base: {x: 0, y:128, z:0},
     src: {x: 0, y: 132, z: 120},
     next: {x:0, y:132, z: 121},
     callback: {x:1, y:132, z: 121}
   }
+  CHARTABLE = {x: 0, y: 0, z: 0}
   def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
     Internal.prepare @world
@@ -261,6 +263,24 @@ class Computer
       }
     end
 
+    def self.prepare_chartable world
+      base_x,base_y,base_z = CHARTABLE[:x], CHARTABLE[:y], CHARTABLE[:z]
+      img = ChunkyPNG::Image.from_file "chars.png"
+      cw, ch = DISPLAY[:char][:w], DISPLAY[:char][:h]
+      128.times{|i|
+        cx = i%16*cw
+        cy = i/16*ch
+        ch.times{|y|cw.times{|x|
+          c = (img[cx+x,cy+y]>>8)/0x10101*3/0xff
+          block = [MCWorld::Block::BlackWool,MCWorld::Block::GrayWool,MCWorld::Block::LightGrayWool,MCWorld::Block::WhiteWool][c]
+          world[base_x+cx+x,base_z+8,base_y+cy+ch-1-y]=block
+        }}
+        8.times{|j|
+          world[base_x+cx, base_z+j, base_y+cy]=MCWorld::Block::Stone if (i>>j)&1==1
+        }
+      }
+    end
+
 
     def self.gen_seek_blocks mode
       raise 'mode get/set' unless [:get, :set].include? mode
@@ -330,6 +350,7 @@ class Computer
       OP_ADD_CALLBACK.merge! set_command_blocks(world, op_add_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_ADD);
       OP_MULT_CALLBACK.merge! set_command_blocks(world, op_mult_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_MULT);
       prepare_display world
+      prepare_chartable world
     end
     def self.mem_addr_coord addr
       x = 0

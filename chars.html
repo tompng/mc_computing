@@ -1,0 +1,38 @@
+<script>
+onload=function(){
+canvas=document.createElement('canvas')
+cw=6
+ch=10
+canvas.width=cw*16;
+canvas.height=ch*8;
+g=canvas.getContext('2d');
+g.fillStyle='black'
+g.fillRect(0,0,canvas.width,canvas.height)
+g.fillStyle='white'
+document.body.innerHTML='';document.body.appendChild(canvas)
+for(var i=0;i<128;i++){
+  g.save();
+  var x=i%16,y=(i-x)/16;
+  g.beginPath()
+  g.rect(x*cw,y*ch,cw,ch);
+  g.clip();
+  g.translate(cw*x+cw/2, ch*y+ch/2.5);
+  g.scale(0.1,0.1)
+  g.font='95px Monaco'
+  g.textAlign='center'
+  g.textBaseline='middle'
+  g.fillStyle='black'
+  g.fillRect(-100,-100,200,200)
+  g.fillStyle='white'
+  g.fillText(String.fromCharCode(i),0,0)
+  g.restore();
+}
+data=g.getImageData(0,0,canvas.width,canvas.height);
+for(var i=0;i<data.data.length;i++){
+if(i%4!=3)data.data[i]=Math.round(data.data[i]/255*3)*255/3;
+}
+g.putImageData(data,0,0);
+img=new Image();img.src=canvas.toDataURL()
+document.body.appendChild(img);
+}
+</script>
