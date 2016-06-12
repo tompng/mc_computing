@@ -13,7 +13,13 @@ class Computer
   OP_ADD_CALLBACK = {}
   OP_MULT = {x:32, y:128, z:128}
   OP_MULT_CALLBACK = {}
-  DISPLAY = {x: 0, y:0, z:0, cw: 5, ch: 8, wn: 24, hn: 12}
+  DISPLAY = {
+    char: {w: 5, h: 8, wn: 24, hn: 12},
+    base: {x: 0, y:0, z:0},
+    src: {x: 0, y: 132, z: 120},
+    next: {x:0, y:132, z: 121},
+    callback: {x:1, y:132, z: 121}
+  }
   def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
     Internal.prepare @world
@@ -195,6 +201,68 @@ class Computer
       commands
     end
 
+    def self.prepare_display world
+      char = DISPLAY[:char]
+      char_w, char_h, char_wn, char_hn = char[:w], char[:h], char[:wn], char[:hn]
+      src = DISPLAY[:src]
+      src_x, src_y, src_z = src[:x], src[:y], src[:z]
+      base = DISPLAY[:base]
+      base_x, base_y, base_z = base[:x], base[:y], base[:z]
+      next_x, next_y, next_z = DISPLAY[:next][:x], DISPLAY[:next][:y], DISPLAY[:next][:z]
+      callback = DISPLAY[:callback]
+      callback_x, callback_y, callback_z = callback[:x], callback[:y], callback[:z]
+      char_hn.times{|y|
+        char_wn.times{|x|
+          char_x = base_x + char_w*x
+          char_y = base_y + char_h*y
+          char_z = base_z
+          char_next_x = base_x + char_w*((x+1)%char_wn)
+          char_next_y = base_y + char_h*((y-(x==char_wn-1?1:0))%char_hn)
+          commands = [
+            "clone #{src_x} #{src_y} #{src_z} #{src_x+char_w-1} #{src_y+char_h-1} #{src_z} #{char_x} #{char_y} #{char_z+1}",
+            "clone #{char_next_x+2} #{char_next_y+1} #{char_z} #{char_next_x+3} #{char_next_y+1} #{char_z} #{next_x} #{next_y} #{next_z}",
+            "setblock #{char_x} #{char_y} #{char_z} air",
+            "setblock #{OP_DONE[:x]} #{OP_DONE[:y]} #{OP_DONE[:z]} redstone_block"
+          ]
+          commands << "fill #{char_x+char_w} #{char_y} #{char_z+1} #{base_x+char_w*char_wn} #{base_y+char_h} #{char_z+1} black_wool" if x==0
+
+          line_next_y = base_y + char_h*((y-1)%char_hn)
+          br_commands = [
+            "clone #{base_x+2} #{line_next_y+1} #{base_z} #{base_x+3} #{line_next_y+1} #{base_z} #{next_x} #{next_y} #{next_z}",
+            "setblock #{char_x+1} #{char_y} #{char_z} air"
+            "setblock #{OP_DONE[:x]} #{OP_DONE[:y]} #{OP_DONE[:z]} redstone_block"
+          ]
+          char_w.times{|x|char_h.times{|y|
+            world[char_x+x,char_z+1,char_y+y]=MCWorld::Block::BlackWool
+          }}
+          commands.each_with_index do |command, i|
+            block = i==0 ? MCWorld::Block::CommandBlock : MCWorld::Block::ChainCommandBlock
+            world[char_x, char_z, char_y+1+i] = block.y_plus
+            world.tile_entities[char_x, char_z, char_y+1+i] = command_data command, redstone: i==0
+          end
+          br_commands.each_with_index do |command, i|
+            block = i==0 ? MCWorld::Block::CommandBlock : MCWorld::Block::ChainCommandBlock
+            world[char_x+1, char_z, char_y+1+i] = block.y_plus
+            world.tile_entities[char_x+1, char_z, char_y+1+i] = command_data command, redstone: i==0
+          end
+          2.times{|i|
+            command = "setblock #{char_x+i} #{char_y} #{char_z} redstone_block"
+            world[char_x+2+i, char_z, char_y+1] = MCWorld::Block::ChainCommandBlock
+            world.tile_entities[char_x+2+i, char_z, char_y+1] = command_data command
+          }
+        }
+      }
+      2.times{|i|
+        world[next_x+i,next_z,next_y] = MCWorld::Block::ChainCommandBlock
+        world.tile_entities[next_x+i,next_z,next_y] = command_data(
+          "setblock #{base_x+i} #{base_y+(char_hn-1)*char_h} #{base_z} redstone"
+        )
+        world[next_x+i,next_z+1,next_y] = MCWorld::Block::CommandBlock.z_minus
+        world.tile_entities[next_x+i,next_z+1,next_y] = command_data "setblock ~ ~ ~+1 air", redstone: true
+      }
+    end
+
+
     def self.gen_seek_blocks mode
       raise 'mode get/set' unless [:get, :set].include? mode
       size = 1+7*12+12+2
@@ -262,6 +330,7 @@ class Computer
       end
       OP_ADD_CALLBACK.merge! set_command_blocks(world, op_add_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_ADD);
       OP_MULT_CALLBACK.merge! set_command_blocks(world, op_mult_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_MULT);
+      prepare_display world
     end
     def self.mem_addr_coord addr
       x = 0
