@@ -51,7 +51,7 @@ module DSL
     def exec_while cond, &block
       while_block = Block.new
       with_block(while_block, &block)
-      current_block.add_operation [:while, cond, while_block]
+      current_block.add_operation [:exec_while, cond, while_block]
       nil
     end
     class Variables < BasicObject
@@ -121,28 +121,87 @@ module DSL
     end
   end
 
+  def compile
+
+  end
+
   module Operation
-    Operations = [
-      :val_set_reg,
-      :op_add,
-      :op_mult,
-      :op_gt,
-      :op_gteq,
-      :op_eq,
-      :op_not,
-      :val_set_ref,
-      :const_set_ref,
-      :const_set_val,
-      :mem_copy,
-      :mem_get,
-      :mem_set,
-      :const_mem_set,
-      :const_mem_get,
-      :jump,
-      :jump_if
-    ]
-    Operations.each do |name|
-      define_singleton_method(name){name}
+    def self.jump_tag
+      @jump_tag ||= 'aaaa'
+      @jump_tag = @jump_tag.next
+    end
+    BinOp = [:+, :-, :*, :==, :>, :>=, :<, :<=]
+    def self.compile block
+      ops = []
+      block.operations.each{|args|
+        ops.push *expr(args)
+      }
+      ops
+    end
+    def self.expr args
+      if Calc === args
+        Operations[args.op][*args.args]
+      else
+        Operations[args.first][*args.drop(1)]
+      end
+    end
+    Operations = {
+      :'=' => ->(a,b){
+        ops = []
+        case b
+        when Calc
+          ops = Operations[b.op][*b.args]
+        when Var
+          ops << [:read, b.address]
+        else
+          ops << [:val_set, b]
+        end
+        ops << [:write, a.address]
+        ops
+      },
+      exec_if: ->(cond, *ifelse){
+        if_block, else_block = ifelse
+        ops = []
+        ops.push *expr(cond)
+        jump_else = jump_tag
+        jump_end = jump_tag
+        if else_block
+          ops << [:jump_if, nil, jump_else]
+        else
+          ops << [:jump_if, nil, jump_end]
+        end
+        ops.push *compile(if_block)
+        if else_block
+          ops << [:jump, jump_end]
+          ops << [:tag, jump_else]
+          ops.push *compile(else_block)
+        end
+        ops << [:tag, jump_end]
+        ops
+      },
+      exec_while: ->(cond, block){
+        jump_start = jump_tag
+        jump_end = jump_tag
+        ops = [
+          [:tag, jump_start],
+          *expr(cond),
+          [:jump_if, nil, jump_end],
+          *compile(block),
+          [:jump, jump_start],
+          [:tag, jump_end]
+        ]
+      }
+    }
+
+    BinOp.each do |op|
+      Operations[op] = ->(a,b){
+        [
+          [:load, a.address],
+          [:reg_set],
+          (Var === b ? [:load, b.address] : [:val_set, b]),
+          [op]
+        ]
+      }
     end
   end
 end
@@ -159,5 +218,6 @@ DSL::Runtime.new{
   exec_while(var.z < 10){
     var.z += 1
   }
+  compiled = DSL::Operation.compile current_block
   binding.pry
 }
