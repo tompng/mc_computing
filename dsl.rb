@@ -28,6 +28,9 @@ module DSL
         @address_index += 1
       end
     end
+    def putc val
+      current_block.add_operation [:putc, val]
+    end
     def array arrs
       arrs.each do |name, size|
         @variables[name.to_s] = Var.new @address_index, self
@@ -96,12 +99,12 @@ module DSL
       "var[#{@name}: #{@address}]"
     end
     def assign val
-      raise 'var/const/calc' unless Fixnum === val || Var === val || Calc === val
+      raise 'var/const/calc' unless String === val || Fixnum === val || Var === val || Calc === val
       @runtime.current_block.add_operation [:'=', self, val]
     end
 
     def validates_var_or_const! val
-      raise 'var or const / use tmp var' unless Fixnum === val || Var === val
+      raise 'var or const / use tmp var' unless String === val || Fixnum === val || Var === val
     end
 
     [:+, :-, :*, :==, :>, :>=, :<, :<=].each do |op|
@@ -139,25 +142,22 @@ module DSL
       ops
     end
     def self.expr args
-      if Calc === args
+      if Var === args
+        [[:read, args.address]]
+      elsif Calc === args
         Operations[args.op][*args.args]
-      else
+      elsif Array === args
         Operations[args.first][*args.drop(1)]
+      else
+        [[:val_set, args]]
       end
     end
     Operations = {
-      :'=' => ->(a,b){
-        ops = []
-        case b
-        when Calc
-          ops = Operations[b.op][*b.args]
-        when Var
-          ops << [:read, b.address]
-        else
-          ops << [:val_set, b]
-        end
-        ops << [:write, a.address]
-        ops
+      :'=' => ->(a, b){
+        [*expr(b), [:write, a.address]]
+      },
+      putc: ->(v){
+        [*expr(v), [:putc]]
       },
       exec_if: ->(cond, *ifelse){
         if_block, else_block = ifelse
@@ -217,7 +217,8 @@ DSL::Runtime.new{
   }
   exec_while(var.z < 10){
     var.z += 1
+    putc var.z
+    putc var.x+var.y
   }
   compiled = DSL::Operation.compile current_block
-  binding.pry
 }
