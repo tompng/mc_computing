@@ -93,16 +93,17 @@ class Computer
     def self.set_command_blocks world, commands, pos
       x, y, z = 0, 0, 0
       xdir, ydir = 1, 1
-      commands = [nil, *commands]
+      commands = [nil, "setblock ~-1 ~ ~ air", *commands]
       commands.each_with_index do |op, i|
-        command, cond = op
+        command, _ = op
+        cond = Array === op
         px, py, pz = x, y, z
         block_x, block_y, block_z = block_pos = [pos[:x]+x, pos[:z]+z, pos[:y]+y]
         flag = false
         (1..16).each{|j|
           break if (x+xdir*j)%16==15
           flag = j and break if commands[i+j].nil? || commands[i+j+1].nil?
-          flag = j and break if commands[i+j].size!=2&&commands[i+j+1].size!=2
+          flag = j and break if !(Array===commands[i+j])&&!(Array===commands[i+j+1])
         }
         if flag
           x += xdir
@@ -140,13 +141,13 @@ class Computer
       }
       32.times{|i|
         commands << "testforblocks #{pos[addr2, i]} #{pos[addr2, i]} #{pos[addr3, i]}"
-        commands << ["clone #{pos[addr3, i]} #{pos[addr3, i]} #{pos[addr3, i+1]}", true]
-        commands << ["fill #{pos[addr2, i]} #{pos[addr3, i]} air", true]
+        commands << ["clone #{pos[addr3, i]} #{pos[addr3, i]} #{pos[addr3, i+1]}"]
+        commands << ["fill #{pos[addr2, i]} #{pos[addr3, i]} air"]
         commands << "clone #{pos[addr3, i]} #{pos[addr3, i]} #{pos[addr2, i]} masked"
         commands << "testforblocks #{pos[addr1, i]} #{pos[addr1, i]} #{pos[addr2, i]}"
-        commands << ["clone #{pos[addr2, i]} #{pos[addr2, i]} #{pos[addr3, i]}", true]
-        commands << ["fill #{pos[addr1, i]} #{pos[addr2, i]} air", true]
-        commands << ["clone #{pos[addr3, i]} #{pos[addr3, i]} #{pos[addr3, i+1]} masked", true]
+        commands << ["clone #{pos[addr2, i]} #{pos[addr2, i]} #{pos[addr3, i]}"]
+        commands << ["fill #{pos[addr1, i]} #{pos[addr2, i]} air"]
+        commands << ["clone #{pos[addr3, i]} #{pos[addr3, i]} #{pos[addr3, i+1]} masked"]
         commands << "clone #{pos[addr2, i]} #{pos[addr2, i]} #{pos[addr1, i]} masked"
       }
       commands << "fill #{pos[addr2]} #{pos[addr3, VALUE_BITS]} air"
@@ -161,7 +162,7 @@ class Computer
       commands = []
       32.times{|i|
         commands << "testforblock #{pos[addr1, i]} stone"
-        commands << ["clone #{pos[addr2]} #{pos[addr2, VALUE_BITS-1]} #{posup[addr2, i]}", true]
+        commands << ["clone #{pos[addr2]} #{pos[addr2, VALUE_BITS-1]} #{posup[addr2, i]}"]
         commands.push *add
       }
       commands << "clone #{posup[addr1]} #{posup[addr2, VALUE_BITS-1]} #{pos[addr1]}"
@@ -177,26 +178,26 @@ class Computer
       commands = []
       if eq
         commands << "testforblocks #{pos[addr1]} #{pos[addr1, VALUE_BITS-1]} #{pos[addr2]}"
-        commands << ["fill #{pos[addr1]} #{pos[addr2, VALUE_BITS-1]} air", true]
+        commands << ["fill #{pos[addr1]} #{pos[addr2, VALUE_BITS-1]} air"]
         commands << "testforblocks #{pos[addr1]} #{pos[addr1, VALUE_BITS-1]} #{pos[addr2]}"
-        commands << ["setblock #{pos[addr1]} stone", true]
+        commands << ["setblock #{pos[addr1]} stone"]
       end
       commands << "testforblock #{pos[addr1, VALUE_BITS-1]} stone"
-      commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} air", true]
-      commands << ["setblock #{out1} stone", true]
+      commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} air"]
+      commands << ["setblock #{out1} stone"]
       commands << "testforblock #{pos[addr1, VALUE_BITS-1]} air"
-      commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} stone", true]
-      commands << ["setblock #{out2} stone", true]
+      commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} stone"]
+      commands << ["setblock #{out2} stone"]
       (31..0).each do |i|
         2.times{|j|
           commands << "testforblock #{[out2, out1][j]} air"
-          commands << ["testforblock #{pos[addr1, i]} #{[:stone, :air][j]}", true]
-          commands << ["testforblock #{pos[addr2, i]} #{[:air, :stone][j]}", true]
-          commands << ["setblock #{[out1, out2][j]} stone", true]
+          commands << ["testforblock #{pos[addr1, i]} #{[:stone, :air][j]}"]
+          commands << ["testforblock #{pos[addr2, i]} #{[:air, :stone][j]}"]
+          commands << ["setblock #{[out1, out2][j]} stone"]
         }
       end
       commands << "testforblock #{pos[addr1, VALUE_BITS-1]} stone"
-      commands << ["clone #{out2} #{out2} #{out1}", true]
+      commands << ["clone #{out2} #{out2} #{out1}"]
       commands << "fill #{pos[addr1]} #{pos[addr2, VALUE_BITS-1]} air"
       commands << "clone #{out1} #{out1} #{pos[addr1]}"
       commands << "fill #{out1} #{out2} air"
@@ -279,7 +280,28 @@ class Computer
           world[base_x+cx, base_z+j, base_y+cy]=MCWorld::Block::Stone if (i>>j)&1==1
         }
       }
+      commands = [
+        "fill #{DISPLAY[:src][:x]} #{DISPLAY[:src][:y]} #{DISPLAY[:src][:z]} #{DISPLAY[:src][:x]+cw-1} #{DISPLAY[:src][:y]+ch-1} #{DISPLAY[:src][:z]} wool 15"
+      ]
+      (32..127).each do |i|
+        bx, by, bz = base_x+i%16*cw, base_y+i/16*ch, base_z
+        commands << "testforblocks #{bx} #{by} #{bz} #{bx} #{by} #{bz+7} #{MEM_VALUE[:x]} #{MEM_VALUE[:y]} #{MEM_VALUE[:z]}"
+        commands << ["clone #{bx} #{by} #{bz+8} #{bx+cw-1} #{by+ch-1} #{bz+8} #{DISPLAY[:src][:x]} #{DISPLAY[:src][:y]} #{DISPLAY[:src][:z]}"]
+        commands << "" if i%3 == 0
+        commands << "" if i%3 == 0
+      end
+      line_break="\n".ord
+      lbx, lby =base_x+line_break%16*cw,base_y+line_break/16*ch
+      commands << "testforblocks #{lbx} #{lby} #{base_z} #{lbx} #{lby} #{base_z+7} #{MEM_VALUE[:x]} #{MEM_VALUE[:y]} #{MEM_VALUE[:z]}"
+      nx, ny, nz = DISPLAY[:next][:x], DISPLAY[:next][:y], DISPLAY[:next][:z]
+      commands << ["setblock #{nx+1} #{ny+1} #{nz+2} redstone_block"]
+      commands << "testforblock #{nx+1} #{ny+1} #{nz+2} air"
+      commands << ["setblock #{nx} #{ny+1} #{nz+2} redstone_block"]
+      commands << "clone #{nx} #{ny+1} #{nz+2} #{nx+1} #{ny+1} #{nz+2} #{nx} #{ny} #{nz+2}"
+      commands << "fill #{nx} #{ny+1} #{nz+2} #{nx+1} #{ny+1} #{nz+2} air"
+      set_command_blocks world, commands, OP_ADD.merge(z: OP_ADD[:z]+8);
     end
+
 
 
     def self.gen_seek_blocks mode
