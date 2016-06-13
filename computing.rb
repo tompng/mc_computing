@@ -115,9 +115,9 @@ class Computer
           "fill #{mc_int_range MEM_VALUE} air",
           ["setblock #{mc_pos MEM_VALUE} stone"],
           "testforblock #{mc_pos MEM_VALUE} stone",
-          [end_command(false_idx || idx+1)],
+          [end_command(true_idx || idx+1)],
           "testforblock #{mc_pos MEM_VALUE} air",
-          [end_command(true_idx || idx+1)]
+          [end_command(false_idx || idx+1)]
         ]
       end
       {
@@ -237,8 +237,10 @@ class Computer
           next unless command
           pos = BaseOp.code_pos(idx, j)
           block = j==1 ? MCWorld::Block::CommandBlock : MCWorld::Block::ChainCommandBlock
-          world[pos[:x], pos[:z], pos[:y]] = block.z_plus
-          world.tile_entities[pos[:x], pos[:z], pos[:y]] = command_data command.to_s, redstone: j==1
+          data = MCWorld::Block::Data::Z_PLUS
+          data |= MCWorld::Block::Data::MASK if Array === command
+          world[pos[:x], pos[:z], pos[:y]] = block[data]
+          world.tile_entities[pos[:x], pos[:z], pos[:y]] = command_data *command, redstone: j==1
         }
       end
     end
@@ -525,28 +527,16 @@ end
 
 Computer.new do
   add_compiled_code DSL::Runtime.new{
-    "Hello World".chars.each do |c|
-      putc c
+    variable :a, :b, :c
+    var.a = '0'
+    exec_while(var.a) do
+      "Hello World".chars.each do |c|
+        putc c
+      end
+      var.a += 1
+      putc var.a
+      putc "\n"
     end
-    # variable :x, :y, :z
-    # array a: 100
-    # var.a[0]='a'
-    # putc('c')
-    # var.x = var.y + var.z
-    # exec_if(var.x==var.y){
-    #   exec_if(var.x > 3){
-    #     var.x = 4
-    #   }
-    # }.else{
-    #   var.z = 3
-    # }
-    # exec_while(var.z < 10){
-    #   var.z += 1
-    #   putc var.z
-    #   var.z = var.a[var.y]
-    #   var.a[var.y] = var.z
-    #   putc var.x+var.y
-    # }
   }.compile
   File.write outfile, @world.encode
 end
