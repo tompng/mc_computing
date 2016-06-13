@@ -33,7 +33,7 @@ module DSL
     end
     def array arrs
       arrs.each do |name, size|
-        @variables[name.to_s] = Var.new @address_index, self
+        @variables[name.to_s] = Var.new name, @address_index, self
         @address_index += size
       end
     end
@@ -87,6 +87,7 @@ module DSL
       "calc[#{@op} #{@args.join ' '}]"
     end
   end
+  Op2 = [:+, :-, :*, :==, :>, :>=, :<, :<=, :[]]
   class Var
     attr_reader :address
     def initialize name, address, runtime
@@ -99,19 +100,27 @@ module DSL
       "var[#{@name}: #{@address}]"
     end
     def assign val
-      raise 'var/const/calc' unless String === val || Fixnum === val || Var === val || Calc === val
+      validates_var_const_calc! val
       @runtime.current_block.add_operation [:'=', self, val]
     end
 
+    def validates_var_const_calc! val
+      raise 'var/const/calc' unless String === val || Fixnum === val || Var === val || Calc === val
+    end
     def validates_var_or_const! val
       raise 'var or const / use tmp var' unless String === val || Fixnum === val || Var === val
     end
 
-    [:+, :-, :*, :==, :>, :>=, :<, :<=].each do |op|
+    Op2.each do |op|
       define_method(op){|v|validates_var_or_const! v;Calc.new op, self, v}
     end
     [:-@, :+@, :!].each do |op|
       define_method(op){Calc.new op, self}
+    end
+    def []= i, v
+      validates_var_or_const! i
+      validates_var_or_const! v
+      @runtime.current_block.add_operation [:[]=, self, i, v]
     end
   end
   class Block
@@ -127,13 +136,19 @@ module DSL
   def compile
 
   end
-
   module Operation
+    def self.const_to_i v
+      if String === v
+        raise unless v.size == 1
+        v.ord
+      else
+        v.to_i
+      end
+    end
     def self.jump_tag
       @jump_tag ||= 'aaaa'
-      @jump_tag = @jump_tag.next
+      (@jump_tag = @jump_tag.next).to_sym
     end
-    BinOp = [:+, :-, :*, :==, :>, :>=, :<, :<=]
     def self.compile block
       ops = []
       block.operations.each{|args|
@@ -149,7 +164,7 @@ module DSL
       elsif Array === args
         Operations[args.first][*args.drop(1)]
       else
-        [[:val_set, args]]
+        [[:val_set, const_to_i(args)]]
       end
     end
     Operations = {
@@ -182,7 +197,7 @@ module DSL
       exec_while: ->(cond, block){
         jump_start = jump_tag
         jump_end = jump_tag
-        ops = [
+        [
           [:tag, jump_start],
           *expr(cond),
           [:jump_if, nil, jump_end],
@@ -190,15 +205,44 @@ module DSL
           [:jump, jump_start],
           [:tag, jump_end]
         ]
+      },
+      :[]= => ->(a,i,v){
+        if Var === i
+          [
+            *expr(i),
+            [:ref_set],
+            *expr(v),
+            [:mem_write]
+          ]
+        else
+          [
+            *expr(v),
+            [:write, a.address+const_to_i(i)]
+          ]
+        end
+      },
+      :[] => ->(a,i){
+        if Var === i || Calc === i
+          [
+            *expr(i),
+            [:reg_set],
+            [:read, a.address],
+            [:+],
+            [:ref_set],
+            [:mem_read]
+          ]
+        else
+          [[:read, a.address+const_to_i(i)]]
+        end
       }
     }
 
-    BinOp.each do |op|
-      Operations[op] = ->(a,b){
+    Op2.each do |op|
+      Operations[op] ||= ->(a,b){
         [
-          [:load, a.address],
+          [:read, a.address],
           [:reg_set],
-          (Var === b ? [:load, b.address] : [:val_set, b]),
+          (Var === b ? [:read, b.address] : [:val_set, const_to_i(b)]),
           [op]
         ]
       }
@@ -207,6 +251,9 @@ module DSL
 end
 DSL::Runtime.new{
   variable :x, :y, :z
+  array a: 100
+  var.a[0]='a'
+  putc('c')
   var.x = var.y + var.z
   exec_if(var.x==var.y){
     exec_if(var.x > 3){
@@ -218,7 +265,10 @@ DSL::Runtime.new{
   exec_while(var.z < 10){
     var.z += 1
     putc var.z
+    var.z = var.a[var.y]
+    var.a[var.y] = var.z
     putc var.x+var.y
   }
   compiled = DSL::Operation.compile current_block
+  binding.pry
 }
