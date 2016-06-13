@@ -1,7 +1,16 @@
-require 'pry'
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org/'
+
+  gem 'pry'
+  gem 'chunky_png'
+end
+
 require_relative 'mc_world/world'
-require 'chunky_png'
-outfile='/Users/tomoya/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca'
+
+outfile=File.expand_path('~/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca')
+
 class Computer
   VALUE_BITS = 32
   MEM_ADDRESS = {x: 0, y: 0, z: 128}
