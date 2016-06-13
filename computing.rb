@@ -9,11 +9,14 @@ class Computer
   SEEK_SET = {x: 1, y:128, z:128}
   MEM_REF = {x: 2, y: 128, z: 128}
   MEM_VALUE = {x:3, y: 128, z: 128}
-  OP_DONE = {x:0, y:128, z: 128-1}
+  REG_VALUE = {x: 4, y: 128 ,z: 128}
+  OP_DONE = {x:0, y:128+4, z: 128}
+  CALLBACK = {x:OP_DONE[:x], y: OP_DONE[:y], z: OP_DONE[:z]+2}
   OP_ADD = {x: 16, y: 128, z: 128}
   OP_ADD_CALLBACK = {}
   OP_MULT = {x:32, y:128, z:128}
   OP_MULT_CALLBACK = {}
+  CODE = {x: 0, y: 0, z: 16}
   DISPLAY = {
     char: {w: 6, h: 10, wn: 20, hn: 12},
     base: {x: 0, y:128, z:0},
@@ -70,6 +73,92 @@ class Computer
   end
 
   module Internal
+    module PointUtil
+      def mc_pos pos, dif={}
+        "#{pos[:x]+(dif[:x]||0)} #{pos[:y]+(dif[:y]||0)} #{pos[:z]+(dif[:z]||0)}"
+      end
+      def mc_byte_rage pos, dif
+        mc_bits_range 8, pos, dif
+      end
+      def mc_short_rage pos, dif
+        mc_bits_range 16, pos, dif
+      end
+      def mc_int_rage pos, dif
+        mc_bits_range 32, pos, dif
+      end
+      def mc_bits_range bits, pos, dif
+        [
+          "#{pos[:x]+(dif[:x]||0)} #{pos[:y]+(dif[:y]||0)} #{pos[:z]+(dif[:z]||0)}",
+          "#{pos[:x]+(dif[:x]||0)} #{pos[:y]+(dif[:y]||0)} #{pos[:z]+(dif[:z]||0)+bits-1}"
+        ].join ' '
+      end
+    end
+    module BaseOp
+      extend PointUtil
+      def self.reg_set idx
+        normal_commands idx, "clone #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}"
+      end
+      def self.read idx, address
+        normal_commands idx, "clone #{mc_int_range Internal.mem_addr_coord(address)} #{mc_pos MEM_VALUE}"
+      end
+      def self.write idx, address
+        normal_commands idx, "clone #{mc_int_range MEM_VALUE} #{mc_pos Internal.mem_addr_coord(address)}"
+      end
+      def self.+ idx
+      end
+      def self.val_set idx, val
+        normal_commands idx, *32.times{|i|
+          "setblock #{mc_pos MEM_VALUE, z: i} #{[:air, :stone][(val>>i)&1]}"
+        }
+      end
+      def self.jump idx, dst_idx
+        [begin_command(idx), end_command(dst_idx)]
+      end
+      def self.jump_if idx, true_idx, false_idx
+        [
+          begin_command(idx),
+          "fill #{mc_int_range MEM_VALUE} air",
+          ["setblock #{mc_pos MEM_VALUE} stone"],
+          "testforblock #{mc_pos MEM_VALUE} stone",
+          [end_command (false_idx || idx+1)],
+          "testforblock #{mc_pos MEM_VALUE} air",
+          [end_command (true_idx || idx+1)]
+        ]
+      end
+      {putc: OP_PUTC, mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE, :+ => :OP_ADD]
+      def self.putc idx
+        callback_commands idx, "setblock #{mc_pos OP_PUTC} redstone_block"
+      end
+      def self.mem_read idx
+        callback_commands idx, "setblock #{mc_pos OP_MEM_READ} redstone_block"
+      end
+      def self.mem_write idx
+        callback_commands idx, "setblock #{mc_pos OP_MEM_WRITE} redstone_block"
+      end
+      def self.ref_set idx
+        normal_commands idx, "clone #{mc_short_rage MEM_VALUE} #{mc_pos MEM_REF}"
+      end
+      def begin_command idx
+        "setblock #{mc_code_pos idx} air"
+      end
+      def end_command dst
+        "setblock #{mc_code_pos idx+1} redstone_block"
+      end
+      def self.callback_commands idx, *commands
+        [
+          begin_command(idx),
+          "clone ~ ~ ~+2 ~ ~ ~+2 #{mc_pos CALLBACK}",
+          nil,
+          end_command(idx+1)
+        ]
+      end
+      def self.normal_commands idx, *commands
+        [begin_command(idx), *commands, end_command(idx+1)]
+      end
+      def self.mc_code_pos idx
+        mc_pos CODE, x: idx%128, y: idx/128
+      end
+    end
     def self.command_data command, redstone: false
       MCWorld::Tag::Hash.new(
         'conditionMet' => MCWorld::Tag::Byte.new(0),
@@ -404,48 +493,3 @@ Computer.new do
   @world.tile_entities[pos_set[:x],pos_set[:z]-4,pos_set[:y]]=Computer::Internal.command_data mem_op_execute_command
   File.write outfile, @world.encode
 end
-
-__END__
-testforblock bit32 stone
-cond clone ~ 64 ~ ~ 128 ~ ~+32 64 ~
-cond setblock ~32 ~3 ~ redstone_block
-cond fill ~ 64 ~ ~ 128 ~ air
-setblock ~ ~+1 ~ restone_block
-stone(will be redstone)
-
-8*8
-64*
-
-128*128*128
-
-6*7*2
-256*256
-64*64
-data  ptr   code  callback
-64bit 14bit 84bit+2bit
-val: 16bit 4bit*4
-
-char: 5x8 24x12 120x96
-
-
-DSL:
-variable(:x, :y, :z)
-array(y: 100)
-var.x = var.y
-var.y = var.x[10]
-var.x = var.y + var.z
-exec_if(var.a + var.b){}.else{}
-exec_while(var.y == var.z){}
-
-
-val_set_reg_#{n} val -> reg             clone clear_redstone next
-bin_op_#{type}   result -> val          set_callback set_redstone clear_redstone | next_command
-val_set_ref      val -> ref             clone clear_redstone next
-const_set_ref    const -> ref           clone clear_redstone next | ref_blocks
-const_set_val    const -> val           clone clear_redstone next | val_blocks
-mem_get          mem[ref] -> val        get_prepare set_callback set_redstone clear_redstone | next_command
-mem_set          val -> mem[ref]        get_prepare set_callback set_redstone clear_redstone | next_command
-const_mem_set    val -> mem[const]      clone clear_redstone next | const_blocks
-const_mem_get    mem[const] -> val      clone clear_redstone next | const_blocks
-jump                                    clear_redstone next
-jump_if                                 set_callback1 set_callback2 set_redstone clear_redstone | callback1 next

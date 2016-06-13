@@ -1,11 +1,3 @@
-# DSL:
-# variable(:x, :y, :z)
-# array(y: 100)
-# var.x = var.y
-# var.y = var.x[10]
-# var.x = var.y + var.z
-# exec_if(var.a + var.b){}.else{}
-# exec_while(var.y == var.z){}
 require 'pry'
 module DSL
   class Runtime
@@ -270,6 +262,7 @@ module DSL
     end
   end
 end
+__END__
 DSL::Runtime.new{
   variable :x, :y, :z
   array a: 100
