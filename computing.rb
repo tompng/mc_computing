@@ -97,7 +97,8 @@ class Computer
           "testforblocks #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}",
           ["setblock #{mc_pos REG_TMP_VALUE} stone"],
           "clone #{mc_bit_range REG_TMP_VALUE} #{mc_pos MEM_VALUE}",
-          "fill #{mc_pos REG_VALUE} #{mc_pos REG_TMP_VALUE, z: 32} air"
+          "fill #{mc_pos REG_VALUE} #{mc_pos REG_TMP_VALUE, z: 32-1} air",
+          "fill #{mc_pos MEM_VALUE, z:1} #{mc_pos MEM_VALUE, z: 32-1} air"
         )
       end
       def self.!= idx
@@ -106,7 +107,8 @@ class Computer
           "testforblocks #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}",
           ["setblock #{mc_pos REG_TMP_VALUE} air"],
           "clone #{mc_bit_range REG_TMP_VALUE} #{mc_pos MEM_VALUE}",
-          "fill #{mc_pos REG_VALUE} #{mc_pos REG_TMP_VALUE, z: 32} air"
+          "fill #{mc_pos REG_VALUE} #{mc_pos REG_TMP_VALUE, z: 32} air",
+          "fill #{mc_pos MEM_VALUE, z:1} #{mc_pos MEM_VALUE, z: 32-1} air"
         )
       end
       def self.val_set idx, val
