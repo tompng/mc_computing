@@ -1,6 +1,14 @@
-require 'pry'
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org/'
+
+  gem 'pry'
+  gem 'chunky_png'
+end
+
 require_relative 'mc_world/world'
-require 'chunky_png'
+
 outfile=File.expand_path('~/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca')
 
 class Computer
