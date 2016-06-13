@@ -145,11 +145,32 @@ module DSL
         v.to_i
       end
     end
-    def self.jump_tag
-      @jump_tag ||= 'aaaa'
-      (@jump_tag = @jump_tag.next).to_sym
+    def self.jump_label
+      @jump_label ||= 'aaaa'
+      (@jump_label = @jump_label.next).to_sym
     end
     def self.compile block
+      pre_compiled = pre_compile block
+      index = 0
+      stripped = []
+      label_table = {}
+      pre_compiled.each do |command|
+        if command.first == :label
+          label_table[command.last] = stripped.size
+        else
+          stripped << command
+        end
+      end
+      stripped.map{|command|
+        op, *args = command
+        if op == :jump || op == :jump_if
+          [op, *args.map{|label|label_table[label]}]
+        else
+          command
+        end
+      }
+    end
+    def self.pre_compile block
       ops = []
       block.operations.each{|args|
         ops.push *expr(args)
@@ -178,32 +199,32 @@ module DSL
         if_block, else_block = ifelse
         ops = []
         ops.push *expr(cond)
-        jump_else = jump_tag
-        jump_end = jump_tag
+        jump_else = jump_label
+        jump_end = jump_label
         if else_block
           ops << [:jump_if, nil, jump_else]
         else
           ops << [:jump_if, nil, jump_end]
         end
-        ops.push *compile(if_block)
+        ops.push *pre_compile(if_block)
         if else_block
           ops << [:jump, jump_end]
-          ops << [:tag, jump_else]
-          ops.push *compile(else_block)
+          ops << [:label, jump_else]
+          ops.push *pre_compile(else_block)
         end
-        ops << [:tag, jump_end]
+        ops << [:label, jump_end]
         ops
       },
       exec_while: ->(cond, block){
-        jump_start = jump_tag
-        jump_end = jump_tag
+        jump_start = jump_label
+        jump_end = jump_label
         [
-          [:tag, jump_start],
+          [:label, jump_start],
           *expr(cond),
           [:jump_if, nil, jump_end],
-          *compile(block),
+          *pre_compile(block),
           [:jump, jump_start],
-          [:tag, jump_end]
+          [:label, jump_end]
         ]
       },
       :[]= => ->(a,i,v){
