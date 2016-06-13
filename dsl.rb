@@ -82,7 +82,7 @@ module DSL
       "calc[#{@op} #{@args.join ' '}]"
     end
   end
-  Op2 = [:+, :-, :*, :==, :>, :>=, :<, :<=, :[]]
+  Op2 = [:+, :-, :*, :==, :'!=', :>, :>=, :<, :<=, :[]]
   class Var
     attr_reader :address
     def initialize name, address, runtime
