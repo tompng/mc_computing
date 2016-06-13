@@ -320,7 +320,7 @@ class Computer
       commands << "testforblock #{pos[addr1, VALUE_BITS-1]} air"
       commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} stone"]
       commands << ["setblock #{out2} stone"]
-      (31..0).each do |i|
+      (0..31).reverse_each do |i|
         2.times{|j|
           commands << "testforblock #{[out2, out1][j]} air"
           commands << ["testforblock #{pos[addr1, i]} #{[:stone, :air][j]}"]
