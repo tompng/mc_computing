@@ -23,6 +23,9 @@ module DSL
     def putc val
       current_block.add_operation [:putc, val]
     end
+    def compile
+      DSL::Operation.compile current_block
+    end
     def array arrs
       arrs.each do |name, size|
         @variables[name.to_s] = Var.new name, @address_index, self

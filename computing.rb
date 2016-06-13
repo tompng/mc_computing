@@ -1,6 +1,7 @@
 require 'pry'
 require_relative 'mc_world/world'
 require 'chunky_png'
+require_relative 'dsl'
 outfile='/Users/tomoya/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca'
 class Computer
   VALUE_BITS = 32
@@ -10,13 +11,20 @@ class Computer
   MEM_REF = {x: 2, y: 128, z: 128}
   MEM_VALUE = {x:3, y: 128, z: 128}
   REG_VALUE = {x: 4, y: 128 ,z: 128}
+  REG_TMP_VALUE = {x: 5, y: 128 ,z: 128}
   OP_DONE = {x:0, y:128+4, z: 128}
   CALLBACK = {x:OP_DONE[:x], y: OP_DONE[:y], z: OP_DONE[:z]+2}
-  OP_ADD = {x: 16, y: 128, z: 128}
-  OP_ADD_CALLBACK = {}
   OP_MULT = {x:32, y:128, z:128}
-  OP_MULT_CALLBACK = {}
-  CODE = {x: 0, y: 0, z: 16}
+  op_x, op_y, op_z = 16, 128, 128
+  OP_MEM_READ = {x: op_x, y: op_y, z: op_z};op_z+=4
+  OP_MEM_WRITE = {x: op_x, y: op_y, z: op_z};op_z+=4
+  OP_ADD = {x: op_x, y: op_y, z: op_z};op_z+=4
+  OP_GT = {x: op_x, y: op_y, z: op_z};op_z+=4
+  OP_GTEQ = {x: op_x, y: op_y, z: op_z};op_z+=4
+  OP_LT = {x: op_x, y: op_y, z: op_z};op_z+=4
+  OP_LTEQ = {x: op_x, y: op_y, z: op_z};op_z+=4
+  OP_PUTC = {x: op_x, y: op_y, z: op_z};op_z+=4
+  CODE = {x: 0, y: 128+32, z: 128}
   DISPLAY = {
     char: {w: 6, h: 10, wn: 20, hn: 12},
     base: {x: 0, y:128, z:0},
@@ -30,46 +38,8 @@ class Computer
     Internal.prepare @world
     instance_eval &block
   end
-
-  def mem_direct_set_command addr, src: MEM_VALUE
-    pos = Internal.mem_addr_coord addr
-    [
-      :clone,
-      "#{src[:x]} #{src[:y]} #{src[:z]}",
-      "#{src[:x]} #{src[:y]} #{src[:z]+VALUE_BITS}",
-      "#{addr[:x]} #{addr[:y]} #{addr[:z]}"
-    ].join ' '
-  end
-
-  def mem_direct_get_command addr, dst: MEM_VALUE
-    pos = Internal.mem_addr_coord addr
-    [
-      :clone,
-      "#{pos[:x]} #{pos[:y]} #{pos[:z]}",
-      "#{pos[:x]} #{pos[:y]} #{pos[:z]+VALUE_BITS}",
-      "#{dst[:x]} #{dst[:y]} #{dst[:z]}"
-    ].join ' '
-  end
-  def mem_op_begin_command mode
-    pos, size = Internal.seek_blocks_info mode
-    [
-      :clone,
-      "#{pos[:x]} #{pos[:y]} #{pos[:z]}",
-      "#{pos[:x]} #{pos[:y]} #{pos[:z]+size-1}",
-      "#{MEM_ADDRESS[:x]} #{MEM_ADDRESS[:y]} #{MEM_ADDRESS[:z]-size}"
-    ].join ' '
-  end
-  def mem_op_set_callback_command pos
-    pos, size = Internal.seek_blocks_info mode
-    [
-      :clone,
-      "#{pos[:x]} #{pos[:y]} #{pos[:z]}",
-      "#{pos[:x]} #{pos[:y]} #{pos[:z]}",
-      "#{MEM_ADDRESS[:x]} #{MEM_ADDRESS[:y]} #{MEM_ADDRESS[:z]-size+1}"
-    ].join ' '
-  end
-  def mem_op_execute_command
-    "setblock #{MEM_ADDRESS[:x]} #{MEM_ADDRESS[:y]} #{MEM_ADDRESS[:z]-1} redstone_block"
+  def add_compiled_code code
+    Internal.add_compiled_code @world, code
   end
 
   module Internal
@@ -77,13 +47,16 @@ class Computer
       def mc_pos pos, dif={}
         "#{pos[:x]+(dif[:x]||0)} #{pos[:y]+(dif[:y]||0)} #{pos[:z]+(dif[:z]||0)}"
       end
-      def mc_byte_rage pos, dif
+      def mc_bit_range pos, dif={}
+        mc_bits_range 1, pos, dif
+      end
+      def mc_byte_range pos, dif={}
         mc_bits_range 8, pos, dif
       end
-      def mc_short_rage pos, dif
+      def mc_short_range pos, dif={}
         mc_bits_range 16, pos, dif
       end
-      def mc_int_rage pos, dif
+      def mc_int_range pos, dif={}
         mc_bits_range 32, pos, dif
       end
       def mc_bits_range bits, pos, dif
@@ -93,6 +66,7 @@ class Computer
         ].join ' '
       end
     end
+    extend PointUtil
     module BaseOp
       extend PointUtil
       def self.reg_set idx
@@ -104,10 +78,31 @@ class Computer
       def self.write idx, address
         normal_commands idx, "clone #{mc_int_range MEM_VALUE} #{mc_pos Internal.mem_addr_coord(address)}"
       end
-      def self.+ idx
+      def self.! idx
+        normal_commands(idx,
+          "fill #{mc_int_range MEM_VALUE} air",
+          ["setblock #{mc_pos MEM_VALUE} stone"]
+        )
+      end
+      def self.== idx
+        normal_commands(idx,
+          "testforblocks #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}",
+          ["setblock #{mc_pos REG_TMP_VALUE} stone"],
+          "clone #{mc_bit_range REG_TMP_VALUE} #{mc_pos MEM_VALUE}",
+          "fill #{mc_pos REG_VALUE} #{mc_pos REG_TMP_VALUE, z: 32} air"
+        )
+      end
+      def self.!= idx
+        normal_commands(idx,
+          "setblock #{mc_pos REG_TMP_VALUE} stone",
+          "testforblocks #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}",
+          ["setblock #{mc_pos REG_TMP_VALUE} air"],
+          "clone #{mc_bit_range REG_TMP_VALUE} #{mc_pos MEM_VALUE}",
+          "fill #{mc_pos REG_VALUE} #{mc_pos REG_TMP_VALUE, z: 32} air"
+        )
       end
       def self.val_set idx, val
-        normal_commands idx, *32.times{|i|
+        normal_commands idx, *32.times.map{|i|
           "setblock #{mc_pos MEM_VALUE, z: i} #{[:air, :stone][(val>>i)&1]}"
         }
       end
@@ -120,34 +115,34 @@ class Computer
           "fill #{mc_int_range MEM_VALUE} air",
           ["setblock #{mc_pos MEM_VALUE} stone"],
           "testforblock #{mc_pos MEM_VALUE} stone",
-          [end_command (false_idx || idx+1)],
+          [end_command(false_idx || idx+1)],
           "testforblock #{mc_pos MEM_VALUE} air",
-          [end_command (true_idx || idx+1)]
+          [end_command(true_idx || idx+1)]
         ]
       end
-      {putc: OP_PUTC, mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE, :+ => :OP_ADD]
-      def self.putc idx
-        callback_commands idx, "setblock #{mc_pos OP_PUTC} redstone_block"
-      end
-      def self.mem_read idx
-        callback_commands idx, "setblock #{mc_pos OP_MEM_READ} redstone_block"
-      end
-      def self.mem_write idx
-        callback_commands idx, "setblock #{mc_pos OP_MEM_WRITE} redstone_block"
+      {
+        putc: OP_PUTC, mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE, :+ => OP_ADD,
+        :* => OP_MULT, :> => OP_GT, :>= => OP_GTEQ, :< => OP_LT, :<= => OP_LTEQ
+      }.each do |op, pos|
+        define_singleton_method op do |idx|
+          callback_commands idx, "setblock #{mc_pos pos} redstone_block"
+        end
       end
       def self.ref_set idx
         normal_commands idx, "clone #{mc_short_rage MEM_VALUE} #{mc_pos MEM_REF}"
       end
-      def begin_command idx
-        "setblock #{mc_code_pos idx} air"
+      def self.begin_command idx
+        "setblock #{mc_pos code_pos idx} air"
       end
-      def end_command dst
-        "setblock #{mc_code_pos idx+1} redstone_block"
+      def self.end_command dst
+        "setblock #{mc_pos code_pos dst} redstone_block"
       end
       def self.callback_commands idx, *commands
+        offset = 2+commands.size
         [
           begin_command(idx),
-          "clone ~ ~ ~+2 ~ ~ ~+2 #{mc_pos CALLBACK}",
+          "clone ~ ~ ~#{offset} ~ ~ ~#{offset} #{mc_pos CALLBACK}",
+          *commands,
           nil,
           end_command(idx+1)
         ]
@@ -155,8 +150,12 @@ class Computer
       def self.normal_commands idx, *commands
         [begin_command(idx), *commands, end_command(idx+1)]
       end
-      def self.mc_code_pos idx
-        mc_pos CODE, x: idx%128, y: idx/128
+      def self.code_pos idx, z=0
+        {
+          x: CODE[:x]+idx%128,
+          y: CODE[:y]+idx/128,
+          z: CODE[:z]+z
+        }
       end
     end
     def self.command_data command, redstone: false
@@ -210,7 +209,6 @@ class Computer
         data |= MCWorld::Block::Data::Y_MINUS if py > y
         data |= MCWorld::Block::Data::Y_PLUS if py < y
         data |= MCWorld::Block::Data::Z_PLUS if pz < z
-        # binding.pry
         if command
           block = i==1 ? MCWorld::Block::CommandBlock : MCWorld::Block::ChainCommandBlock;
           data |= MCWorld::Block::Data::MASK if cond
@@ -220,6 +218,31 @@ class Computer
       end
       {x: pos[:x]+x, y: pos[:z]+z, z: pos[:y]+y}
     end
+
+    def self.op_mem_commands mode
+      pos, size = seek_blocks_info mode
+      [
+        "clone #{mc_pos pos} #{mc_pos pos, z: size-1} #{mc_pos MEM_ADDRESS, z: -size}",
+        "setblock #{mc_pos MEM_ADDRESS, z: -1} redstone_block"
+      ]
+    end
+    def mem_op_execute_command
+      "setblock #{MEM_ADDRESS[:x]} #{MEM_ADDRESS[:y]} #{MEM_ADDRESS[:z]-1} redstone_block"
+    end
+
+    def self.add_compiled_code world, code
+      code.each_with_index do |code, idx|
+        commands = BaseOp.send code.first, idx, *code.drop(1)
+        commands.each.with_index(1){|command, j|
+          next unless command
+          pos = BaseOp.code_pos(idx, j)
+          block = j==1 ? MCWorld::Block::CommandBlock : MCWorld::Block::ChainCommandBlock
+          world[pos[:x], pos[:z], pos[:y]] = block.z_plus
+          world.tile_entities[pos[:x], pos[:z], pos[:y]] = command_data command.to_s, redstone: j==1
+        }
+      end
+    end
+
     def self.op_add_commands addr
       commands = []
       addr1 = addr
@@ -240,6 +263,8 @@ class Computer
         commands << "clone #{pos[addr2, i]} #{pos[addr2, i]} #{pos[addr1, i]} masked"
       }
       commands << "fill #{pos[addr2]} #{pos[addr3, VALUE_BITS]} air"
+      commands << "setblock #{mc_pos OP_DONE} redstone_block"
+      commands
     end
 
     def self.op_mult_commands addr
@@ -256,15 +281,23 @@ class Computer
       }
       commands << "clone #{posup[addr1]} #{posup[addr2, VALUE_BITS-1]} #{pos[addr1]}"
       commands << "fill #{posup[addr1]} #{posup[addr1, VALUE_BITS-1]} air"
+      commands << "setblock #{mc_pos OP_DONE} redstone_block"
+      commands
     end
 
-    def self.op_gt_commands addr, eq: false
+    def self.op_gt_commands addr, swap: false, eq: false
       pos=->(base, i=0){"#{base[:x]} #{base[:y]} #{base[:z]+i}"}
       addr1 = addr
       addr2 = addr1.merge x: addr1[:x]+1
       out1 = pos[addr1.merge y: addr1[:y]+1]
       out2 = pos[addr1.merge y: addr2[:y]+1]
       commands = []
+      if swap
+        commands << "clone #{mc_int_range REG_VALUE} #{mc_pos REG_TMP_VALUE}"
+        commands << "clone #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}"
+        commands << "clone #{mc_int_range REG_TMP_VALUE} #{mc_pos MEM_VALUE}"
+        commands << "fill #{mc_int_range REG_TMP_VALUE} air"
+      end
       if eq
         commands << "testforblocks #{pos[addr1]} #{pos[addr1, VALUE_BITS-1]} #{pos[addr2]}"
         commands << ["fill #{pos[addr1]} #{pos[addr2, VALUE_BITS-1]} air"]
@@ -290,6 +323,7 @@ class Computer
       commands << "fill #{pos[addr1]} #{pos[addr2, VALUE_BITS-1]} air"
       commands << "clone #{out1} #{out1} #{pos[addr1]}"
       commands << "fill #{out1} #{out2} air"
+      commands << "setblock #{mc_pos OP_DONE} redstone_block"
       commands
     end
 
@@ -388,7 +422,7 @@ class Computer
       commands << ["setblock #{nx} #{ny+1} #{nz+2} redstone_block"]
       commands << "clone #{nx} #{ny+1} #{nz+2} #{nx+1} #{ny+1} #{nz+2} #{nx} #{ny} #{nz+2}"
       commands << "fill #{nx} #{ny+1} #{nz+2} #{nx+1} #{ny+1} #{nz+2} air"
-      set_command_blocks world, commands, OP_ADD.merge(z: OP_ADD[:z]+8);
+      set_command_blocks world, commands, OP_PUTC;
     end
 
 
@@ -458,8 +492,19 @@ class Computer
           world.tile_entities[pos[:x],pos[:z]+i,pos[:y]] = tile_entity
         }
       end
-      OP_ADD_CALLBACK.merge! set_command_blocks(world, op_add_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_ADD);
-      OP_MULT_CALLBACK.merge! set_command_blocks(world, op_mult_commands(MEM_VALUE.merge(x: MEM_VALUE[:x]+1)), OP_MULT);
+      set_command_blocks(world, op_add_commands(MEM_VALUE), OP_ADD);
+      set_command_blocks(world, op_mult_commands(MEM_VALUE), OP_MULT);
+      set_command_blocks(world, op_gt_commands(MEM_VALUE), OP_GT);
+      set_command_blocks(world, op_gt_commands(MEM_VALUE, eq: true), OP_GTEQ);
+      set_command_blocks(world, op_gt_commands(MEM_VALUE, swap: true), OP_LT);
+      set_command_blocks(world, op_gt_commands(MEM_VALUE, swap: true, eq: true), OP_LTEQ);
+      set_command_blocks(world, op_mem_commands(:get), OP_MEM_READ)
+      set_command_blocks(world, op_mem_commands(:set), OP_MEM_WRITE)
+
+      done_reset_pos = [OP_DONE[:x], OP_DONE[:z]+1, OP_DONE[:y]]
+      world[*done_reset_pos] = MCWorld::Block::CommandBlock.z_plus
+      world.tile_entities[*done_reset_pos] = command_data "setblock #{mc_pos OP_DONE} air", redstone: true
+
       prepare_display world
       prepare_chartable world
     end
@@ -479,17 +524,29 @@ class Computer
 end
 
 Computer.new do
-  pos_get = Computer::SEEK_GET
-  pos_set = Computer::SEEK_SET
-  @world[pos_get[:x],pos_get[:z]-2,pos_get[:y]-1]=MCWorld::Block::Stone
-  @world[pos_set[:x],pos_set[:z]-2,pos_get[:y]-1]=MCWorld::Block::Stone
-  @world[pos_get[:x],pos_get[:z]-3,pos_get[:y]] = MCWorld::Block::CommandBlock[MCWorld::Block::Data::Z_MINUS]
-  @world.tile_entities[pos_get[:x],pos_get[:z]-3,pos_get[:y]]=Computer::Internal.command_data mem_op_begin_command(:get), redstone: true
-  @world[pos_get[:x],pos_get[:z]-4,pos_get[:y]] = MCWorld::Block::ChainCommandBlock[MCWorld::Block::Data::Z_MINUS]
-  @world.tile_entities[pos_get[:x],pos_get[:z]-4,pos_get[:y]]=Computer::Internal.command_data mem_op_execute_command
-  @world[pos_set[:x],pos_set[:z]-3,pos_set[:y]] = MCWorld::Block::CommandBlock[MCWorld::Block::Data::Z_MINUS]
-  @world.tile_entities[pos_set[:x],pos_set[:z]-3,pos_set[:y]]=Computer::Internal.command_data mem_op_begin_command(:set), redstone: true
-  @world[pos_set[:x],pos_set[:z]-4,pos_set[:y]] = MCWorld::Block::ChainCommandBlock[MCWorld::Block::Data::Z_MINUS]
-  @world.tile_entities[pos_set[:x],pos_set[:z]-4,pos_set[:y]]=Computer::Internal.command_data mem_op_execute_command
+  add_compiled_code DSL::Runtime.new{
+    "Hello World".chars.each do |c|
+      putc c
+    end
+    # variable :x, :y, :z
+    # array a: 100
+    # var.a[0]='a'
+    # putc('c')
+    # var.x = var.y + var.z
+    # exec_if(var.x==var.y){
+    #   exec_if(var.x > 3){
+    #     var.x = 4
+    #   }
+    # }.else{
+    #   var.z = 3
+    # }
+    # exec_while(var.z < 10){
+    #   var.z += 1
+    #   putc var.z
+    #   var.z = var.a[var.y]
+    #   var.a[var.y] = var.z
+    #   putc var.x+var.y
+    # }
+  }.compile
   File.write outfile, @world.encode
 end
