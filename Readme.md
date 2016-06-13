@@ -16,4 +16,4 @@ Computer.new do
   File.write 'r.0.0.mca', @world.encode
 end
 ```
-[sample](https://cloud.githubusercontent.com/assets/1780201/16016086/f4e07cca-31d3-11e6-9996-9dd8a70df6c2.png])
+![sample](https://dl.dropboxusercontent.com/u/102060740/mc_helloworld.png)
