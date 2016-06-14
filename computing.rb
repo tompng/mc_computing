@@ -192,20 +192,25 @@ class Computer
       x, y, z = 0, 0, 0
       xdir, ydir = 1, 1
       commands = [nil, "setblock ~-1 ~ ~ air", *commands]
+      commands_with_padding = []
+      commands.each_with_index do |command, i|
+        size = commands_with_padding.size % 16
+        if (16-size-1).times.all?{|j| Array === commands[i+j+1]}
+          commands_with_padding.push *([""]*(16-size))
+        end
+        commands_with_padding << command
+      end
+      commands = commands_with_padding
+
       commands.each_with_index do |op, i|
         command, _ = op
         cond = Array === op
         px, py, pz = x, y, z
         block_x, block_y, block_z = block_pos = [pos[:x]+x, pos[:z]+z, pos[:y]+y]
         flag = false
-        (1..16).each{|j|
-          break if (x+xdir*j)%16==15
-          flag = j and break if commands[i+j].nil? || commands[i+j+1].nil?
-          flag = j and break if !(Array===commands[i+j])&&!(Array===commands[i+j+1])
-        }
-        if flag
+        if (0...16).include? x+xdir
           x += xdir
-        elsif (y+ydir) % 16 != 15
+        elsif (0...16).include? y+ydir
           xdir = -xdir
           y += ydir
         else
@@ -422,8 +427,6 @@ class Computer
         bx, by, bz = base_x+i%16*cw, base_y+i/16*ch, base_z
         commands << "testforblocks #{bx} #{by} #{bz} #{bx} #{by} #{bz+7} #{MEM_VALUE[:x]} #{MEM_VALUE[:y]} #{MEM_VALUE[:z]}"
         commands << ["clone #{bx} #{by} #{bz+8} #{bx+cw-1} #{by+ch-1} #{bz+8} #{DISPLAY[:src][:x]} #{DISPLAY[:src][:y]} #{DISPLAY[:src][:z]}"]
-        commands << "" if i%3 == 0
-        commands << "" if i%3 == 0
       end
       line_break="\n".ord
       lbx, lby =base_x+line_break%16*cw,base_y+line_break/16*ch
