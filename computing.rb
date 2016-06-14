@@ -302,12 +302,12 @@ class Computer
       commands
     end
 
-    def self.op_gt_commands addr, swap: false, eq: false
+    def self.op_lt_commands addr, swap: false, eq: false
       pos=->(base, i=0){"#{base[:x]} #{base[:y]} #{base[:z]+i}"}
       addr1 = addr
       addr2 = addr1.merge x: addr1[:x]+1
       out1 = pos[addr1.merge y: addr1[:y]+1]
-      out2 = pos[addr1.merge y: addr2[:y]+1]
+      out2 = pos[addr2.merge y: addr2[:y]+1]
       commands = []
       if swap
         commands << "clone #{mc_int_range REG_VALUE} #{mc_pos REG_TMP_VALUE}"
@@ -323,11 +323,11 @@ class Computer
       end
       commands << "testforblock #{pos[addr1, VALUE_BITS-1]} stone"
       commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} air"]
-      commands << ["setblock #{out1} stone"]
+      commands << ["setblock #{out2} stone"]
       commands << "testforblock #{pos[addr1, VALUE_BITS-1]} air"
       commands << ["testforblock #{pos[addr2, VALUE_BITS-1]} stone"]
       commands << ["setblock #{out2} stone"]
-      (0..31).reverse_each do |i|
+      (VALUE_BITS-1).times.reverse_each do |i|
         2.times{|j|
           commands << "testforblock #{[out2, out1][j]} air"
           commands << ["testforblock #{pos[addr1, i]} #{[:stone, :air][j]}"]
@@ -509,10 +509,10 @@ class Computer
       end
       set_command_blocks(world, op_add_commands(MEM_VALUE), OP_ADD);
       set_command_blocks(world, op_mult_commands(MEM_VALUE), OP_MULT);
-      set_command_blocks(world, op_gt_commands(MEM_VALUE), OP_GT);
-      set_command_blocks(world, op_gt_commands(MEM_VALUE, eq: true), OP_GTEQ);
-      set_command_blocks(world, op_gt_commands(MEM_VALUE, swap: true), OP_LT);
-      set_command_blocks(world, op_gt_commands(MEM_VALUE, swap: true, eq: true), OP_LTEQ);
+      set_command_blocks(world, op_lt_commands(MEM_VALUE, swap: true), OP_GT);
+      set_command_blocks(world, op_lt_commands(MEM_VALUE, swap: true, eq: true), OP_GTEQ);
+      set_command_blocks(world, op_lt_commands(MEM_VALUE), OP_LT);
+      set_command_blocks(world, op_lt_commands(MEM_VALUE, eq: true), OP_LTEQ);
       set_command_blocks(world, op_mem_commands(:get), OP_MEM_READ)
       set_command_blocks(world, op_mem_commands(:set), OP_MEM_WRITE)
 
@@ -541,13 +541,13 @@ end
 Computer.new do
   add_compiled_code DSL::Runtime.new{
     variable :a, :b, :c
-    var.a = '0'
-    exec_while(var.a) do
+    var.a = 0
+    exec_while(var.a<=3) do
       "Hello World".chars.each do |c|
         putc c
       end
       var.a += 1
-      putc var.a
+      putc var.a+'0'
       putc "\n"
     end
   }.compile
