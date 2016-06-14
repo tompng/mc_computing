@@ -528,27 +528,60 @@ class Computer
       y = 0
       z = 0
       7.times{|i|
-        x |= (addr>>(1<<(2*i))&1)<<i
-        y |= (addr>>(1<<(2*i+1))&1)<<i
+        x |= addr&(1<<(2*i)) == 0 ? 0 : 1<<i
+        y |= addr&(1<<(2*i+1)) == 0 ? 0 : 1<<i
       }
       z |= ((addr>>14)&1)<<1
       z |= ((addr>>15)&1)<<2
-      {x: MEM_ADDRESS[:x]+x, y: MEM_ADDRESS[:y]+y, z: MEM_ADDRESS[:z]+z}
+      {x: MEM_ADDRESS[:x]+x, y: MEM_ADDRESS[:y]+y, z: MEM_ADDRESS[:z]+VALUE_BITS*z}
     end
   end
 end
 
 Computer.new do
   add_compiled_code DSL::Runtime.new{
-    variable :a, :b, :c
-    var.a = 0
-    exec_while(var.a<=3) do
-      "Hello World".chars.each do |c|
-        putc c
+    variable :mod3, :mod5, :tmp, :tmp2
+    array n10: 10
+    var.mod3 = 0
+    var.mod5 = 0
+    exec_while(1) do
+      var.mod3 += 1
+      var.mod5 += 1
+      var.tmp = var.n10[0]
+      var.tmp += 1
+      var.n10[0] = var.tmp
+      exec_if var.tmp == 10 do
+        var.n10[0] = 0
+        var.tmp = var.n10[1]
+        var.tmp += 1
+        var.n10[1] = var.tmp
+        exec_if var.tmp == 10 do
+          var.n10[1] = 0
+          var.tmp = var.n10[2]
+          var.tmp += 1
+          var.n10[2] = var.tmp
+        end
       end
-      var.a += 1
-      putc var.a+'0'
-      putc "\n"
+      exec_if(var.mod3 == 3){
+        var.mod3 = 0
+        putc 'F';putc 'i';putc 'z';putc 'z'
+      }
+      exec_if(var.mod5 == 5){
+        var.mod5 = 0
+        putc 'B';putc 'u';putc 'z';putc 'z'
+      }
+      exec_if(var.mod3){exec_if(var.mod5){
+        var.tmp = var.n10[2];
+        exec_if(var.tmp){
+          putc var.tmp+'0'
+        }
+        var.tmp2 = var.n10[1]
+        var.tmp += var.tmp2
+        exec_if(var.tmp){putc var.tmp2+'0'}
+        var.tmp=var.n10[0]
+        putc var.tmp+'0'
+      }}
+      putc ' '
     end
   }.compile
   File.write outfile, @world.encode
