@@ -21,9 +21,9 @@ module MCWorld::TileEntity
         @tile_table.delete key
         return
       end
-      (val['x'] ||= MCWorld::Tag::Int.new(0)).value = @base_x + x
-      (val['z'] ||= MCWorld::Tag::Int.new(0)).value = @base_z + z
-      (val['y'] ||= MCWorld::Tag::Int.new(0)).value = y
+      val['x'] = MCWorld::Tag::Int.new @base_x + x
+      val['z'] = MCWorld::Tag::Int.new @base_z + z
+      val['y'] = MCWorld::Tag::Int.new y
       @tile_table[key] = val
     end
     def encode_data

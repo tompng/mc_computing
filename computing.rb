@@ -482,7 +482,7 @@ class Computer
           world.tile_entities[KEYBOARD[:x]+x, KEYBOARD[:z]+offset-3-i , KEYBOARD[:y]+y] = command_data *command, redstone: i==0
         end
       }
-      set_char_button = ->(x, y, offset, code, face){
+      set_char_button = ->(x, y, offset, code, face, range=nil){
         commands = []
         commands << "setblock #{mc_pos KEYBOARD, x: x, y: y, z: offset-2} air"
         test = "testforblock #{mc_pos KEYBOARD_INPUT_FLAG_POS} redstone_block"
@@ -494,6 +494,17 @@ class Computer
         }
         commands << ["setblock #{mc_pos KEYBOARD_INPUT_FLAG_POS} air"]
         commands << ["setblock #{mc_pos OP_DONE} redstone_block"]
+        if range
+          commands << [
+            [:fill,
+              mc_pos(KEYBOARD, x: range[0][:x], y: range[0][:y], z: 1),
+              mc_pos(KEYBOARD, x: range[1][:x], y: range[1][:y], z: 1),
+              :glowstone
+            ].join(' ')
+          ]
+        else
+          commands << ["setblock #{mc_pos KEYBOARD, x: x, y: y, z: 1} glowstone"]
+        end
         set_key_button[x, y, offset, commands, face]
       }
       img = ChunkyPNG::Image.from_file "keyboard.png"
@@ -507,21 +518,42 @@ class Computer
           }
         }
       }
-      [[keyboards1, false], [keyboards2, true]].each do |keyboards, shift|
+      [[keyboards1, true], [keyboards2, false]].each do |keyboards, shift|
         keyboards.each_with_index do |line, li|
           line.chars.each_with_index do |c, x|
             next if c == ' '
             set_char_button[x, (keyboards.size-li-1), (shift ? -SHIFT_OFFSET : 0), c.ord, face_from_code[c.ord]]
           end
         end
-        set_char_button[4, 0, (shift ? -SHIFT_OFFSET : 0), 0x20, [[1]*10,*[[1]+[0]*9]*6,[1]*10]]
+        offset = (shift ? -SHIFT_OFFSET : 0)
+        space_range = [{x: 4, y: 0}, {x: 8, y: 0}]
+        set_char_button[4, 0, offset, 0x20, [[1]*10,*[[1]+[0]*9]*6,[1]*10], space_range]
         (5..7).each{|i|
-          set_char_button[i, 0, (shift ? -SHIFT_OFFSET : 0), 0x20, [[1]*10,*[[0]*10]*6,[1]*10]]
+          set_char_button[i, 0, offset, 0x20, [[1]*10,*[[0]*10]*6,[1]*10], space_range]
         }
-        set_char_button[8, 0, (shift ? -SHIFT_OFFSET : 0), 0x20, [[1]*10,*[[0]*9+[1]]*6,[1]*10]]
-        set_char_button[13, 2, (shift ? -SHIFT_OFFSET : 0), 0x0A, enter_face]
-        set_char_button[13, 4, (shift ? -SHIFT_OFFSET : 0), 0x0D, delete_face]
+        set_char_button[8, 0, offset, 0x20, [[1]*10,*[[0]*9+[1]]*6,[1]*10], space_range]
+        set_char_button[13, 2, offset, 0x0A, enter_face]
+        set_char_button[13, 4, offset, 0x0D, delete_face]
+
+        shift_commands = [
+          "setblock ~ ~ ~+1 air",
+          "fill #{mc_pos KEYBOARD, z: 1} #{mc_pos KEYBOARD, x: 13, y: 4, z:1} stone",
+          "clone #{mc_pos KEYBOARD, z: -SHIFT_OFFSET-offset} #{mc_pos KEYBOARD, x: 13, y: 4, z: -SHIFT_OFFSET-offset} #{mc_pos KEYBOARD_FACE}"
+        ]
+        set_key_button[0,  1, offset, shift_commands, shift_face]
+        set_key_button[13, 1, offset, shift_commands, shift_face]
       end
+      14.times{|x|5.times{|y|
+        world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]-1, KEYBOARD_FACE[:y]+y] = MCWorld::Block::Stone
+        world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]+y, KEYBOARD_FACE[:y]-1] = MCWorld::Block::Stone
+        src = KEYBOARD[:x]+x, KEYBOARD[:z], KEYBOARD[:y]+y
+        dst = KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z], KEYBOARD_FACE[:y]+y
+        world[*dst] = world[*src]
+        tile = world.tile_entities[*src]
+        world.tile_entities[*dst] = MCWorld::Tag::Hash.new tile.value.dup if tile
+      }}
+
+      world[KEYBOARD_INPUT_FLAG_POS[:x],KEYBOARD_INPUT_FLAG_POS[:z],KEYBOARD_INPUT_FLAG_POS[:y]] = MCWorld::Block::RedstoneBlock
     end
 
     def self.prepare_chartable world
