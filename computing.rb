@@ -1,5 +1,5 @@
 require 'bundler/inline'
-
+require 'json'
 gemfile do
   source 'https://rubygems.org/'
 
@@ -10,7 +10,6 @@ end
 require_relative 'mc_world/world'
 require_relative 'dsl'
 outfile=File.expand_path('~/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca')
-
 class Computer
   VALUE_BITS = 32
   MEM_ADDRESS = {x: 0, y: 0, z: 128}
@@ -404,6 +403,127 @@ class Computer
       }
     end
 
+    def self.sign_data bitmaps, command
+      data = {id: MCWorld::Tag::String.new('Sign')}
+      ascii_json = ->data{
+        data.to_json.gsub(/./){|s|
+          s.ord < 128 ? s : "\\u#{s.ord.to_s(16)}"
+        }
+      }
+      4.times.map{|i|
+        text = bitmaps[2*i].zip(bitmaps[2*i+1]).map{|a,b|
+          '＿▀▄█'[a|(b<<1)]
+        }.join
+        line_data = {text: text}
+        line_data[:clickEvent] = {action: :run_command, value: command} if i == 0
+        data["Text#{i+1}"] = MCWorld::Tag::String.new ascii_json[line_data]
+      }
+      MCWorld::Tag::Hash.new data
+    end
+    KEYBOARD_FACE = {x:64-7,y:130,z:127}
+    KEYBOARD = KEYBOARD_FACE.merge z: KEYBOARD_FACE[:z]-2
+    SHIFT_OFFSET = 16
+    KEYBOARD_INPUT_FLAG_POS = KEYBOARD.merge z: KEYBOARD[:z]-40
+    def self.prepare_keyboard world
+      keyboards1 = [
+        %(`1234567890-= ),
+        %( qwertyuiop[]\\),
+        %( asdfghjkl;'  ),
+        %(  zxcvbnm,./  ),
+        %(              )
+      ]
+      keyboards2 = [
+        %(~!@#$%^&*()_+ ),
+        %( QWERTYUIOP[]|),
+        %( ASDFGHJKL:"  ),
+        %(  ZXCVBNM<>?  ),
+        %(              )
+      ]
+      aa_to_face = ->*aa{
+        lines = []
+        aa.each{|line|
+          a, b = [], []
+          line.each_char{|c|
+            a << (c==':'||c=="'" ? 1 : 0)
+            b << (c==':'||c=='.' ? 1 : 0)
+          }
+          lines.push a, b
+        }
+        lines
+      }
+      shift_face=aa_to_face[
+        %(  .'.  ),
+        %(.:. .:.),
+        %(  : :  ),
+        %(  :.:  ),
+      ]
+      delete_face=aa_to_face[
+        %(  .'''''':),
+        %(.'  '..' :),
+        %('.  .''. :),
+        %(  '......:)
+      ]
+      enter_face=aa_to_face[
+        %(   .  :':),
+        %( .':..: :),
+        %('. .....'),
+        %(  ':     ),
+      ]
+      set_key_button = ->(x, y, offset, commands, face){
+        sign_command = "setblock #{mc_pos KEYBOARD, x: x, y: y, z: offset-2} redstone_block"
+        world[KEYBOARD[:x]+x, KEYBOARD[:z]+offset-1, KEYBOARD[:y]+y] = MCWorld::Block::Stone
+        world[KEYBOARD[:x]+x, KEYBOARD[:z]+offset, KEYBOARD[:y]+y] = MCWorld::Block::WallMountedSignBlock.z_plus
+        world.tile_entities[KEYBOARD[:x]+x, KEYBOARD[:z]+offset , KEYBOARD[:y]+y] = sign_data face, sign_command
+        commands.each_with_index do |command, i|
+          block = (i==0 ? MCWorld::Block::CommandBlock : MCWorld::Block::ChainCommandBlock)
+          data = MCWorld::Block::Data::Z_MINUS
+          data |= MCWorld::Block::Data::MASK if Array === command
+          world[KEYBOARD[:x]+x, KEYBOARD[:z]+offset-3-i , KEYBOARD[:y]+y] = block[data]
+          world.tile_entities[KEYBOARD[:x]+x, KEYBOARD[:z]+offset-3-i , KEYBOARD[:y]+y] = command_data *command, redstone: i==0
+        end
+      }
+      set_char_button = ->(x, y, offset, code, face){
+        commands = []
+        commands << "setblock #{mc_pos KEYBOARD, x: x, y: y, z: offset-2} air"
+        test = "testforblock #{mc_pos KEYBOARD_INPUT_FLAG_POS} redstone_block"
+        commands << test
+        commands << ["fill #{mc_int_range MEM_VALUE} air"]
+        commands << test
+        8.times{|i|
+          commands << ["setblock #{mc_pos MEM_VALUE, z: i} stone"] if (code >> i) & 1 == 1
+        }
+        commands << ["setblock #{mc_pos KEYBOARD_INPUT_FLAG_POS} air"]
+        commands << ["setblock #{mc_pos OP_DONE} redstone_block"]
+        set_key_button[x, y, offset, commands, face]
+      }
+      img = ChunkyPNG::Image.from_file "keyboard.png"
+      cw, ch = 8, 8
+      face_from_code = ->code{
+        cx = code%16*cw
+        cy = code/16*ch
+        ch.times.map{|y|
+          cw.times.map{|x|
+            (img[cx+x,cy+y]>>8)/0x10101/0xff
+          }
+        }
+      }
+      [[keyboards1, false], [keyboards2, true]].each do |keyboards, shift|
+        keyboards.each_with_index do |line, li|
+          line.chars.each_with_index do |c, x|
+            next if c == ' '
+            set_char_button[x, (keyboards.size-li-1), (shift ? -SHIFT_OFFSET : 0), c.ord, face_from_code[c.ord]]
+          end
+        end
+        set_char_button[4, 0, (shift ? -SHIFT_OFFSET : 0), 0x20, [[1]*10,*[[1]+[0]*9]*6,[1]*10]]
+        (5..7).each{|i|
+          set_char_button[i, 0, (shift ? -SHIFT_OFFSET : 0), 0x20, [[1]*10,*[[0]*10]*6,[1]*10]]
+        }
+        set_char_button[8, 0, (shift ? -SHIFT_OFFSET : 0), 0x20, [[1]*10,*[[0]*9+[1]]*6,[1]*10]]
+        set_char_button[13, 2, (shift ? -SHIFT_OFFSET : 0), 0x0A, enter_face]
+        set_char_button[13, 4, (shift ? -SHIFT_OFFSET : 0), 0x0D, delete_face]
+      end
+    end
+
     def self.prepare_chartable world
       base_x,base_y,base_z = CHARTABLE[:x], CHARTABLE[:y], CHARTABLE[:z]
       img = ChunkyPNG::Image.from_file "chars.png"
@@ -522,6 +642,7 @@ class Computer
 
       prepare_display world
       prepare_chartable world
+      prepare_keyboard world
     end
     def self.mem_addr_coord addr
       x = 0
