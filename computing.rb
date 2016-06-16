@@ -552,7 +552,6 @@ class Computer
         tile = world.tile_entities[*src]
         world.tile_entities[*dst] = MCWorld::Tag::Hash.new tile.value.dup if tile
       }}
-
       world[KEYBOARD_INPUT_FLAG_POS[:x],KEYBOARD_INPUT_FLAG_POS[:z],KEYBOARD_INPUT_FLAG_POS[:y]] = MCWorld::Block::RedstoneBlock
     end
 
@@ -671,6 +670,9 @@ class Computer
       done_reset_pos = [OP_DONE[:x], OP_DONE[:z]+1, OP_DONE[:y]]
       world[*done_reset_pos] = MCWorld::Block::CommandBlock.z_plus
       world.tile_entities[*done_reset_pos] = command_data "setblock #{mc_pos OP_DONE} air", redstone: true
+      callback_pos = [CALLBACK[:x], CALLBACK[:z], CALLBACK[:y]]
+      world[*callback_pos] = MCWorld::Block::ChainCommandBlock.z_plus
+      world.tile_entities[*callback_pos] = command_data "setblock #{mc_pos CODE} redstone_block"
 
       prepare_display world
       prepare_chartable world
