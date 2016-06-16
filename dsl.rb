@@ -20,6 +20,9 @@ module DSL
         @address_index += 1
       end
     end
+    def getc
+      Calc.new :getc
+    end
     def putc val
       current_block.add_operation [:putc, val]
     end
@@ -186,6 +189,9 @@ module DSL
     Operations = {
       :'=' => ->(a, b){
         [*expr(b), [:write, a.address]]
+      },
+      getc: ->(){
+        [[:getc]]
       },
       putc: ->(v){
         [*expr(v), [:putc]]

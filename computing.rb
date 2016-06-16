@@ -40,6 +40,11 @@ class Computer
     callback: {x:1, y:132, z: 121}
   }
   CHARTABLE = {x: 0, y: 0, z: 0}
+  KEYBOARD_FACE = {x:64-7,y:130,z:127}
+  KEYBOARD = KEYBOARD_FACE.merge z: KEYBOARD_FACE[:z]-2
+  SHIFT_OFFSET = 16
+  KEYBOARD_READING = KEYBOARD.merge z: KEYBOARD[:z]-32
+  KEYBOARD_READING_SET = KEYBOARD_READING.merge z: KEYBOARD_READING[:z]-1
   def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
     Internal.prepare @world
@@ -131,7 +136,8 @@ class Computer
       end
       {
         putc: OP_PUTC, mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE, :+ => OP_ADD,
-        :* => OP_MULT, :> => OP_GT, :>= => OP_GTEQ, :< => OP_LT, :<= => OP_LTEQ
+        :* => OP_MULT, :> => OP_GT, :>= => OP_GTEQ, :< => OP_LT, :<= => OP_LTEQ,
+        getc: KEYBOARD_READING
       }.each do |op, pos|
         define_singleton_method op do |idx|
           callback_commands idx, "setblock #{mc_pos pos} redstone_block"
@@ -420,10 +426,6 @@ class Computer
       }
       MCWorld::Tag::Hash.new data
     end
-    KEYBOARD_FACE = {x:64-7,y:130,z:127}
-    KEYBOARD = KEYBOARD_FACE.merge z: KEYBOARD_FACE[:z]-2
-    SHIFT_OFFSET = 16
-    KEYBOARD_INPUT_FLAG_POS = KEYBOARD.merge z: KEYBOARD[:z]-40
     def self.prepare_keyboard world
       keyboards1 = [
         %(`1234567890-= ),
@@ -485,14 +487,14 @@ class Computer
       set_char_button = ->(x, y, offset, code, face, range=nil){
         commands = []
         commands << "setblock #{mc_pos KEYBOARD, x: x, y: y, z: offset-2} air"
-        test = "testforblock #{mc_pos KEYBOARD_INPUT_FLAG_POS} redstone_block"
+        test = "testforblock #{mc_pos KEYBOARD_READING} redstone_block"
         commands << test
         commands << ["fill #{mc_int_range MEM_VALUE} air"]
         commands << test
         8.times{|i|
           commands << ["setblock #{mc_pos MEM_VALUE, z: i} stone"] if (code >> i) & 1 == 1
         }
-        commands << ["setblock #{mc_pos KEYBOARD_INPUT_FLAG_POS} air"]
+        commands << ["setblock #{mc_pos KEYBOARD_READING} air"]
         commands << ["setblock #{mc_pos OP_DONE} redstone_block"]
         if range
           commands << [
@@ -552,7 +554,11 @@ class Computer
         tile = world.tile_entities[*src]
         world.tile_entities[*dst] = MCWorld::Tag::Hash.new tile.value.dup if tile
       }}
-      world[KEYBOARD_INPUT_FLAG_POS[:x],KEYBOARD_INPUT_FLAG_POS[:z],KEYBOARD_INPUT_FLAG_POS[:y]] = MCWorld::Block::RedstoneBlock
+      world[KEYBOARD_READING[:x],KEYBOARD_READING[:z],KEYBOARD_READING[:y]] = MCWorld::Block::RedstoneBlock
+      reading_set_pos = KEYBOARD_READING_SET[:x],KEYBOARD_READING_SET[:z],KEYBOARD_READING_SET[:y]
+      world[*reading_set_pos] = MCWorld::Block::CommandBlock
+      world.tile_entities[*reading_set_pos] = command_data "fill #{mc_pos KEYBOARD, z: 1} #{mc_pos KEYBOARD, x: 13, y: 4, z:1} stone", redstone: true
+
     end
 
     def self.prepare_chartable world
@@ -699,6 +705,13 @@ Computer.new do
     array n10: 10
     var.mod3 = 0
     var.mod5 = 0
+    var.tmp = 0
+    exec_while(var.tmp < 4){
+      var.tmp += 1
+      var.tmp2 = getc
+      var.tmp2 += 1
+      putc var.tmp2
+    }
     exec_while(1) do
       var.mod3 += 1
       var.mod5 += 1
