@@ -14,20 +14,22 @@ DSL::Runtime.define_custom_statement :puti, arity: 1
 DSL::Runtime.define_custom_expression :getc
 class Computer
   VALUE_BITS = 32
-  MEM_ADDRESS = {x: 0, y: 0, z: 128}
-  SEEK_GET = {x: 0, y:128, z:128}
-  SEEK_SET = {x: 1, y:128, z:128}
-  MEM_REF = {x: 2, y: 128, z: 128}
-  MEM_VALUE = {x:3, y: 128, z: 128}
-  REG_VALUE = {x: 4, y: 128 ,z: 128}
-  REG_TMP_VALUE = {x: 5, y: 128 ,z: 128}
-  STACK_VALUE={x: 2, y: 128+2, z: 128}
-  STACK_COORD = ->i{STACK_VALUE.merge x: STACK_VALUE[:x]+i%12, y: STACK_VALUE[:y]+i/12}
-  OP_DONE = {x:0, y:128+4, z: 128}
-  CALLBACK = {x:OP_DONE[:x], y: OP_DONE[:y], z: OP_DONE[:z]+2}
-  OP_MULT = {x:32, y:128, z:128}
-  op_x, op_y, op_z = 16, 128, 128
-  op_next_pos = ->{pos = {x: op_x, y: op_y, z: op_z};op_z+=2;pos}
+  BASE_POSITION = {x: 128, y: 0, z: 128}
+  relative_position = ->pos{BASE_POSITION.map{|k,v|[k, v+(pos[k]||0)]}.to_h}
+  MEM_ADDRESS = relative_position[x: 0, y: 0, z: 128]
+  SEEK_GET = relative_position[x: 0, y:128, z:128]
+  SEEK_SET = relative_position[x: 1, y:128, z:128]
+  MEM_REF = relative_position[x: 2, y: 128, z: 128]
+  MEM_VALUE = relative_position[x:3, y: 128, z: 128]
+  REG_VALUE = relative_position[x: 4, y: 128 ,z: 128]
+  REG_TMP_VALUE = relative_position[x: 5, y: 128 ,z: 128]
+  STACK_BASE_COORD=relative_position[x: 2, y: 128+2, z: 128]
+  STACK_COORD = ->i{STACK_BASE_COORD.merge x: STACK_BASE_COORD[:x]+i%12, y: STACK_BASE_COORD[:y]+i/12}
+  OP_DONE = relative_position[x: 0, y: 128+4, z: 128]
+  CALLBACK = {x: OP_DONE[:x], y: OP_DONE[:y], z: OP_DONE[:z]+2}
+  OP_MULT = relative_position[x:32, y:128, z:128]
+  op_pos = relative_position[x: 16, y: 128, z: 128]
+  op_next_pos = ->{pos = op_pos.dup;op_pos[:z]+=2;pos}
   OP_MEM_READ = op_next_pos.call
   OP_MEM_WRITE = op_next_pos.call
   OP_ADD = op_next_pos.call
@@ -38,16 +40,16 @@ class Computer
   OP_PUTC = op_next_pos.call
   OP_PUTI_POSITIONS = (VALUE_BITS/4).times.map{op_next_pos.call}
 
-  CODE = {x: 0, y: 128+32, z: 128}
+  CODE = relative_position[x: 0, y: 128+32, z: 128]
   DISPLAY = {
     char: {w: 6, h: 10, wn: 20, hn: 12},
-    base: {x: 0, y:128, z:0},
-    src: {x: 0, y: 132, z: 120},
-    next: {x:0, y:132, z: 121},
-    callback: {x:1, y:132, z: 121}
+    base: relative_position[x: 0, y:128, z:0],
+    src: relative_position[x: 0, y: 132, z: 120],
+    next: relative_position[x:0, y:132, z: 121],
+    callback: relative_position[x:1, y:132, z: 121]
   }
-  CHARTABLE = {x: 0, y: 0, z: 0}
-  KEYBOARD_FACE = {x:64-7,y:130,z:127}
+  CHARTABLE = relative_position[x: 0, y: 0, z: 0]
+  KEYBOARD_FACE = relative_position[x: 64-7, y: 130, z: 127]
   KEYBOARD = KEYBOARD_FACE.merge z: KEYBOARD_FACE[:z]-2
   SHIFT_OFFSET = 16
   KEYBOARD_READING = KEYBOARD.merge z: KEYBOARD[:z]-32
@@ -744,6 +746,13 @@ class Computer
       end
     end
     def self.prepare world
+
+      (-32...128+32).each{|x|
+        (-32...256+32).each{|z|
+          world[BASE_POSITION[:x]+x, BASE_POSITION[:z]+z, 0]=nil
+        }
+      }
+
       [[seek_get_blocks, SEEK_GET], [seek_set_blocks, SEEK_SET]].each do |block_tile_entities, pos|
         block_tile_entities.each_with_index{|bt, i|
           block, tile_entity = bt
