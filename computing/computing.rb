@@ -16,6 +16,7 @@ class Computer
   BASE_POSITION = {x: 128, y: 0, z: 128}
   relative_position = ->pos{BASE_POSITION.map{|k,v|[k, v+(pos[k]||0)]}.to_h}
   MEM_ADDRESS = relative_position[x: 0, y: 0, z: 128]
+  MEM_HEAD_OFFSET = 1
   SEEK_GET = relative_position[x: 0, y:128, z:128]
   SEEK_SET = relative_position[x: 1, y:128, z:128]
   MEM_REF = relative_position[x: 2, y: 128, z: 128]
@@ -278,8 +279,8 @@ class Computer
     def self.op_mem_commands mode
       pos, size = seek_blocks_info mode
       [
-        "clone #{mc_pos pos} #{mc_pos pos, z: size-1} #{mc_pos MEM_ADDRESS, z: -size}",
-        "setblock #{mc_pos MEM_ADDRESS, z: -1} redstone_block"
+        "clone #{mc_pos pos} #{mc_pos pos, z: size-1} #{mc_pos MEM_ADDRESS, z: -size-MEM_HEAD_OFFSET}",
+        "setblock #{mc_pos MEM_ADDRESS, z: -1-MEM_HEAD_OFFSET} redstone_block"
       ]
     end
 
@@ -706,15 +707,15 @@ class Computer
       add[nil]
       7.times{|i|
         add["testforblock #{x} #{y} #{z+i} stone", redstone: true]
-        add["clone ~ ~ #{memz-size} ~ ~ #{memz-1} ~#{1<<i} ~ #{memz-size}", chain: true, cond: true]
+        add["clone ~ ~ #{memz-size-MEM_HEAD_OFFSET} ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~#{1<<i} ~ #{memz-size-MEM_HEAD_OFFSET}", chain: true, cond: true]
         add["setblock ~#{1<<i} ~ ~-3 redstone_block", chain: true, cond: true]
-        add["fill ~ ~ #{memz-1} ~ ~ #{memz-size} air", chain: true, cond: true]
+        add["fill ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~ ~ #{memz-size-MEM_HEAD_OFFSET} air", chain: true, cond: true]
         add["setblock ~ ~ ~-1 redstone_block", chain: true]
         add[nil]
         add["testforblock #{x} #{y} #{z+i+7} stone", redstone: true]
-        add["clone ~ ~ #{memz-size} ~ ~ #{memz-1} ~ ~#{1<<i} #{memz-size}", chain: true, cond: true]
+        add["clone ~ ~ #{memz-size-MEM_HEAD_OFFSET} ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~ ~#{1<<i} #{memz-size-MEM_HEAD_OFFSET}", chain: true, cond: true]
         add["setblock ~ ~#{1<<i} ~-3 redstone_block", chain: true, cond: true]
-        add["fill ~ ~ #{memz-1} ~ ~ #{memz-size} air", chain: true, cond: true]
+        add["fill ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~ ~ #{memz-size-MEM_HEAD_OFFSET} air", chain: true, cond: true]
         add["setblock ~ ~ ~-1 redstone_block", chain: true]
         add[nil]
       }
@@ -732,7 +733,7 @@ class Computer
         end
       }
       add["setblock #{OP_DONE[:x]} #{OP_DONE[:y]} #{OP_DONE[:z]} redstone_block", chain: true]
-      add["fill ~ ~ #{memz-1} ~ ~ #{memz-size} air", chain: true]
+      add["fill ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~ ~ #{memz-size-MEM_HEAD_OFFSET} air", chain: true]
       blocks.reverse
     end
     def self.seek_get_blocks;@seek_get_blocks||=gen_seek_blocks :get;end
