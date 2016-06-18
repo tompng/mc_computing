@@ -287,9 +287,6 @@ class Computer
         "setblock #{mc_pos MEM_ADDRESS, z: -1} redstone_block"
       ]
     end
-    def mem_op_execute_command
-      "setblock #{MEM_ADDRESS[:x]} #{MEM_ADDRESS[:y]} #{MEM_ADDRESS[:z]-1} redstone_block"
-    end
 
     def self.add_compiled_code world, code
       code.each_with_index do |code, idx|
