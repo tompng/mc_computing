@@ -2,13 +2,12 @@ require 'bundler/inline'
 require 'json'
 gemfile do
   source 'https://rubygems.org/'
-
   gem 'pry'
   gem 'chunky_png'
 end
 
 require_relative 'mc_world/world'
-require_relative 'dsl'
+require_relative 'dsl_compiler'
 outfile=File.expand_path('~/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca')
 class Computer
   VALUE_BITS = 32
@@ -19,6 +18,8 @@ class Computer
   MEM_VALUE = {x:3, y: 128, z: 128}
   REG_VALUE = {x: 4, y: 128 ,z: 128}
   REG_TMP_VALUE = {x: 5, y: 128 ,z: 128}
+  STACK_VALUE={x: 2, y: 128+2, z: 128}
+  STACK_COORD = ->i{STACK_VALUE.merge x: STACK_VALUE[:x]+i%12, y: STACK_VALUE[:y]+i/12}
   OP_DONE = {x:0, y:128+4, z: 128}
   CALLBACK = {x:OP_DONE[:x], y: OP_DONE[:y], z: OP_DONE[:z]+2}
   OP_MULT = {x:32, y:128, z:128}
@@ -701,33 +702,24 @@ end
 
 Computer.new do
   add_compiled_code DSL::Runtime.new{
-    variable :mod3, :mod5, :tmp, :tmp2
+    variable :mod3, :mod5, :i
     array n10: 10
     var.mod3 = 0
     var.mod5 = 0
-    var.tmp = 0
-    exec_while(var.tmp < 4){
-      var.tmp += 1
-      var.tmp2 = getc
-      var.tmp2 += 1
-      putc var.tmp2
+    exec_while(var.i < 4){
+      var.i += 1
+      putc getc+1
     }
     exec_while(1) do
       var.mod3 += 1
       var.mod5 += 1
-      var.tmp = var.n10[0]
-      var.tmp += 1
-      var.n10[0] = var.tmp
-      exec_if var.tmp == 10 do
+      var.n10[0] += 1
+      exec_if var.n10[0] == 10 do
         var.n10[0] = 0
-        var.tmp = var.n10[1]
-        var.tmp += 1
-        var.n10[1] = var.tmp
-        exec_if var.tmp == 10 do
+        var.n10[1] += 1
+        exec_if var.n10[1] == 10 do
           var.n10[1] = 0
-          var.tmp = var.n10[2]
-          var.tmp += 1
-          var.n10[2] = var.tmp
+          var.n10[2] += 1
         end
       end
       exec_if(var.mod3 == 3){
@@ -739,15 +731,9 @@ Computer.new do
         putc 'B';putc 'u';putc 'z';putc 'z'
       }
       exec_if(var.mod3){exec_if(var.mod5){
-        var.tmp = var.n10[2];
-        exec_if(var.tmp){
-          putc var.tmp+'0'
-        }
-        var.tmp2 = var.n10[1]
-        var.tmp += var.tmp2
-        exec_if(var.tmp){putc var.tmp2+'0'}
-        var.tmp=var.n10[0]
-        putc var.tmp+'0'
+        exec_if(var.n10[2]){putc var.n10[2]+'0'}
+        exec_if(var.n10[1]+var.n10[2]){putc var.n10[1]+'0'}
+        putc var.n10[0]+'0'
       }}
       putc ' '
     end
