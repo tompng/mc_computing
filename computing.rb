@@ -36,10 +36,6 @@ class Computer
   OP_LT = op_next_pos.call
   OP_LTEQ = op_next_pos.call
   OP_PUTC = op_next_pos.call
-  OP_BITSHIFT_LEFT = op_next_pos.call
-  OP_BITSHIFT_RIGHT = op_next_pos.call
-  OP_NOT = op_next_pos.call
-  OP_PUTI = op_next_pos.call
   OP_PUTI_POSITIONS = (VALUE_BITS/4).times.map{op_next_pos.call}
 
   CODE = {x: 0, y: 128+32, z: 128}
