@@ -521,7 +521,7 @@ class Computer
       ]
       keyboards2 = [
         %(~!@#$%^&*()_+ ),
-        %( QWERTYUIOP[]|),
+        %( QWERTYUIOP{}|),
         %( ASDFGHJKL:"  ),
         %(  ZXCVBNM<>?  ),
         %(              )
