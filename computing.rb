@@ -82,9 +82,6 @@ class Computer
     extend PointUtil
     module BaseOp
       extend PointUtil
-      def self.reg_set idx
-        normal_commands idx, "clone #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}"
-      end
       def self.read idx, address
         normal_commands idx, "clone #{mc_int_range Internal.mem_addr_coord(address)} #{mc_pos MEM_VALUE}"
       end
@@ -116,11 +113,6 @@ class Computer
           "fill #{mc_pos MEM_VALUE, z:1} #{mc_pos MEM_VALUE, z: 32-1} air"
         )
       end
-      def self.val_set idx, val
-        normal_commands idx, *32.times.map{|i|
-          "setblock #{mc_pos MEM_VALUE, z: i} #{[:air, :stone][(val>>i)&1]}"
-        }
-      end
       def self.jump idx, dst_idx
         [begin_command(idx), end_command(dst_idx)]
       end
@@ -144,8 +136,34 @@ class Computer
           callback_commands idx, "setblock #{mc_pos pos} redstone_block"
         end
       end
-      def self.ref_set idx
-        normal_commands idx, "clone #{mc_short_rage MEM_VALUE} #{mc_pos MEM_REF}"
+      def self.addr_coord pos
+        type, idx = pos
+        case type
+        when :value
+          MEM_VALUE
+        when :reg
+          REG_VALUE
+        when :ref
+          MEM_REF
+        when :stack
+          STACK_COORD[idx]
+        when :memory
+          Internal.mem_addr_coord idx
+        else
+          raise
+        end
+      end
+      def self.const_set idx, value, to
+        normal_commands(
+          idx,
+          "fill #{mc_int_range addr_coord(to)}",
+          *32.times.map{|i|
+            "setblock #{mc_pos addr_coord(to), z: i} stone" if (value >> i) & 1 == 1
+          }.compact
+        )
+      end
+      def self.set idx, from, to
+        normal_commands idx, "clone #{mc_int_range addr_coord(from)} #{mc_pos addr_coord(to)}"
       end
       def self.begin_command idx
         "setblock #{mc_pos code_pos idx} air"

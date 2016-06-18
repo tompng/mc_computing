@@ -40,7 +40,7 @@ module DSL
         [[:set, [:memory, address], [:stack, stack]]]
       },
       const: ->(stack, value){
-        [[:const_set, [:stack, stack], value]]
+        [[:const_set, value, [:stack, stack]]]
       },
       :'=' => ->(stack, a, b){
         [*expr(stack, b), [:set, [:stack, stack], [:memory, a.address]]]
