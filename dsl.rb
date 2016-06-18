@@ -38,15 +38,23 @@ module DSL
     def exec_if cond, &block
       if_block = Block.new
       else_block = Block.new
-      op = [:exec_if, Exp.to_exp(cond), if_block]
+      args = [Exp.to_exp(cond), if_block]
       with_block(if_block, &block)
       ifelse = Object.new
       rt = self
       ifelse.define_singleton_method :else  do |&block|
-        op.push else_block
+        args.push else_block
         rt.with_block(else_block, &block)
       end
-      current_block.add_operation Exp.new *op
+      ifelse.define_singleton_method :elsif do |cond, &block|
+        args.push else_block
+        elsif_block = nil
+        rt.with_block(else_block){
+          elsif_block = rt.exec_if(cond, &block)
+        }
+        elsif_block
+      end
+      current_block.add_operation Exp.new :exec_if, lazy: args
       ifelse
     end
       def exec_while cond, &block
@@ -85,8 +93,9 @@ module DSL
     def self.to_exp exp
       Exp === exp ? exp : Const.new(exp)
     end
-    def initialize op, *args
+    def initialize op, *args, lazy: nil
       @op, @args = op, args
+      @args = lazy if lazy
     end
     def inspect
       to_s
