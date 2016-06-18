@@ -6,9 +6,8 @@ gemfile do
   gem 'chunky_png'
 end
 
-require_relative 'mc_world/world'
+require_relative '../mc_world/world'
 require_relative 'dsl_compiler'
-outfile=File.expand_path('~/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca')
 DSL::Runtime.define_custom_statement :putc, arity: 1
 DSL::Runtime.define_custom_statement :puti, arity: 1
 DSL::Runtime.define_custom_expression :getc
@@ -809,34 +808,3 @@ class Computer
     end
   end
 end
-
-computer = Computer.new
-computer.code do
-  variable :mod3, :mod5, :i, :n
-  var.mod3 = 0
-  var.mod5 = 0
-  exec_while(var.i < 4){
-    var.i += 1
-    putc '>'
-    putc getc+1
-    putc "\n"
-  }
-  exec_while(1) do
-    var.mod3 += 1
-    var.mod5 += 1
-    var.n += 1
-    exec_if(var.mod3 == 3){
-      var.mod3 = 0
-      putc 'F';putc 'i';putc 'z';putc 'z'
-    }
-    exec_if(var.mod5 == 5){
-      var.mod5 = 0
-      putc 'B';putc 'u';putc 'z';putc 'z'
-    }
-    exec_if(!!var.mod3 & !!var.mod5){
-      puti var.n
-    }
-    putc ' '
-  end
-end
-File.write outfile, computer.encode
