@@ -53,7 +53,7 @@ module DSL
       },
       exec_if: ->(stack, cond, *ifelse){
         if_block, else_block = ifelse
-        ops = [*expr(stack, cond)]
+        ops = [*expr(stack, cond),[:set, [:stack, stack], :value]]
         jump_else = jump_label
         jump_end = jump_label
         if else_block
@@ -76,6 +76,7 @@ module DSL
         [
           [:label, jump_start],
           *expr(stack, cond),
+          [:set, [:stack, stack], :value],
           [:jump_if, nil, jump_end],
           *pre_compile(block),
           [:jump, jump_start],

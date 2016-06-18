@@ -156,7 +156,7 @@ class Computer
       def self.const_set idx, value, to
         normal_commands(
           idx,
-          "fill #{mc_int_range addr_coord(to)}",
+          "fill #{mc_int_range addr_coord(to)} air",
           *32.times.map{|i|
             "setblock #{mc_pos addr_coord(to), z: i} stone" if (value >> i) & 1 == 1
           }.compact
@@ -726,7 +726,9 @@ Computer.new do
     var.mod5 = 0
     exec_while(var.i < 4){
       var.i += 1
+      putc '>'
       putc getc+1
+      putc "\n"
     }
     exec_while(1) do
       var.mod3 += 1
