@@ -746,12 +746,24 @@ class Computer
       end
     end
     def self.prepare world
-
       (-32...128+32).each{|x|
         (-32...256+32).each{|z|
           world[BASE_POSITION[:x]+x, BASE_POSITION[:z]+z, 0]=nil
         }
       }
+      mem_border_set=->(dx, dz, dy){world[MEM_ADDRESS[:x]+dx, MEM_ADDRESS[:z]+dz, MEM_ADDRESS[:y]+dy]=MCWorld::Block::Bedrock}
+      128.times do |i|
+        [0,127].each do |y|
+          mem_border_set[i,-1,y]
+          mem_border_set[-1,i,y]
+          mem_border_set[i,128,y]
+          mem_border_set[128,i,y]
+        end
+        mem_border_set[-1,-1,i]
+        mem_border_set[-1,128,i]
+        mem_border_set[128,-1,i]
+        mem_border_set[128,128,i]
+      end
 
       [[seek_get_blocks, SEEK_GET], [seek_set_blocks, SEEK_SET]].each do |block_tile_entities, pos|
         block_tile_entities.each_with_index{|bt, i|
