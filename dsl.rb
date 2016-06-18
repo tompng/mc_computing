@@ -2,6 +2,21 @@ require 'pry'
 module DSL
   class Runtime
     attr_reader :current_block, :variables
+    def self.define_custom_expression name, arity: 0
+      raise if arity < 0 || arity > 2
+      define_method name do |*args|
+        raise if args.size != arity
+        Exp.new :custom, name, *args.map{|v| Exp.to_exp(v)}
+      end
+    end
+    def self.define_custom_statement name, arity: 0
+      raise if arity < 0 || arity > 2
+      define_method name do |*args|
+        raise if args.size != arity
+        current_block.add_operation Exp.new :custom, name, *args.map{|v| Exp.to_exp(v)}
+        nil
+      end
+    end
     def with_block block
       prev = @current_block
       @current_block = block
@@ -19,12 +34,6 @@ module DSL
         @variables[name.to_s] = Var.new name, @address_index, self
         @address_index += 1
       end
-    end
-    def getc
-      Exp.new :getc
-    end
-    def putc val
-      current_block.add_operation Exp.new(:putc, Exp.to_exp(val))
     end
     def compile
       DSL::Operation.compile current_block
@@ -86,8 +95,8 @@ module DSL
       Variables.new @variables
     end
   end
-  Op2 = [:+, :-, :*, :==, :'!=', :>, :>=, :<, :<=, :[], :&, :|]
-  Op1 = [:-@, :+@, :!]
+  Op2 = %i(+ - * / % == != > >= < <= & | << >>)
+  Op1 = %i(-@ +@ !)
   class Exp
     attr_reader :op, :args
     def self.to_exp exp
@@ -135,6 +144,9 @@ module DSL
     end
     def assign exp
       @runtime.current_block.add_operation Exp.new(:'=', self, Exp.to_exp(exp))
+    end
+    def [] i
+      Exp.new :[], self, Exp.to_exp(i)
     end
     def []= i, v
       @runtime.current_block.add_operation Exp.new(:[]=, self, Exp.to_exp(i), Exp.to_exp(v))

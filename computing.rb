@@ -9,6 +9,8 @@ end
 require_relative 'mc_world/world'
 require_relative 'dsl_compiler'
 outfile=File.expand_path('~/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca')
+DSL::Runtime.define_custom_statement :putc, arity: 1
+DSL::Runtime.define_custom_expression :getc
 class Computer
   VALUE_BITS = 32
   MEM_ADDRESS = {x: 0, y: 0, z: 128}
@@ -144,6 +146,12 @@ class Computer
           callback_commands idx, "setblock #{mc_pos pos} redstone_block"
         end
       end
+      CUSTOM_COMMAND_POS = {getc: KEYBOARD_READING, putc: OP_PUTC}
+      def self.custom idx, name
+        raise unless CUSTOM_COMMAND_POS.key? name
+        callback_commands idx, "setblock #{mc_pos CUSTOM_COMMAND_POS[name]} redstone_block"
+      end
+
       def self.addr_coord pos
         type, idx = pos
         case type

@@ -45,11 +45,18 @@ module DSL
       :'=' => ->(stack, a, b){
         [*expr(stack, b), [:set, [:stack, stack], [:memory, a.address]]]
       },
-      getc: ->(stack){
-        [[:getc], [:set, :value, [:stack, stack]]]
-      },
-      putc: ->(stack, v){
-        [*expr(stack, v), [:set, [:stack, stack], :value], [:putc]]
+      custom: ->(stack, name, *args){
+        ops = []
+        args.each_with_index do |arg, i|
+          ops.push *expr(stack+i, arg), [:set, [:stack, stack+i], :value]
+        end
+        if args.size == 2
+          ops << [:set, [:stack, stack], :reg]
+          ops << [:set, [:stack, stack+1], :value]
+        elsif args.size == 1
+          ops << [:set, [:stack, stack], :value]
+        end
+        [*ops, [name], [:set, :value, [:stack, stack]]]
       },
       exec_if: ->(stack, cond, *ifelse){
         if_block, else_block = ifelse
