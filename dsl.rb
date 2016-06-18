@@ -38,7 +38,7 @@ module DSL
     def exec_if cond, &block
       if_block = Block.new
       else_block = Block.new
-      op = [:exec_if, cond, if_block]
+      op = [:exec_if, Exp.to_exp(cond), if_block]
       with_block(if_block, &block)
       ifelse = Object.new
       rt = self
@@ -52,7 +52,7 @@ module DSL
       def exec_while cond, &block
       while_block = Block.new
       with_block(while_block, &block)
-      current_block.add_operation Exp.new :exec_while, cond, while_block
+      current_block.add_operation Exp.new :exec_while, Exp.to_exp(cond), while_block
       nil
     end
     class Variables < BasicObject

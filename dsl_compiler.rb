@@ -84,7 +84,7 @@ module DSL
       },
       :[]= => ->(stack, a,i,v){
         if Const === i
-          [*expr(stack, v), [:set, [:stack, stack], [:memory, a.address+v.value]]]
+          [*expr(stack, v), [:set, [:stack, stack], [:memory, a.address+i.value]]]
         else
           [
             *expr(stack, i),
