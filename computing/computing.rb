@@ -636,7 +636,7 @@ class Computer
       end
       14.times{|x|5.times{|y|
         world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]-1, KEYBOARD_FACE[:y]+y] = MCWorld::Block::Stone
-        world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]+y, KEYBOARD_FACE[:y]-1] = MCWorld::Block::Stone
+        world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]+y-1, KEYBOARD_FACE[:y]-1] = MCWorld::Block::Stone
         src = KEYBOARD[:x]+x, KEYBOARD[:z], KEYBOARD[:y]+y
         dst = KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z], KEYBOARD_FACE[:y]+y
         world[*dst] = world[*src]
