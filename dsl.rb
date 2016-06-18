@@ -95,8 +95,8 @@ module DSL
       Variables.new @variables
     end
   end
-  Op2 = %i(+ - * / % == != > >= < <= & | << >>)
-  Op1 = %i(-@ +@ !)
+  Op2 = %i(+ - * / % == != > >= < <= & | << >> ^)
+  Op1 = %i(-@ +@ ! ~)
   class Exp
     attr_reader :op, :args
     def self.to_exp exp

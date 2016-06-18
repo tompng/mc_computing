@@ -10,6 +10,7 @@ require_relative 'mc_world/world'
 require_relative 'dsl_compiler'
 outfile=File.expand_path('~/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca')
 DSL::Runtime.define_custom_statement :putc, arity: 1
+DSL::Runtime.define_custom_statement :puti, arity: 1
 DSL::Runtime.define_custom_expression :getc
 class Computer
   VALUE_BITS = 32
@@ -35,11 +36,10 @@ class Computer
   OP_LT = op_next_pos.call
   OP_LTEQ = op_next_pos.call
   OP_PUTC = op_next_pos.call
-  OP_BITOR = op_next_pos.call
-  OP_BITAND = op_next_pos.call
   OP_BITSHIFT_LEFT = op_next_pos.call
   OP_BITSHIFT_RIGHT = op_next_pos.call
   OP_NOT = op_next_pos.call
+  OP_PUTI = op_next_pos.call
 
   CODE = {x: 0, y: 128+32, z: 128}
   DISPLAY = {
@@ -121,6 +121,12 @@ class Computer
           "fill #{mc_pos REG_VALUE} #{mc_pos REG_TMP_VALUE, z: 32} air",
           "fill #{mc_pos MEM_VALUE, z:1} #{mc_pos MEM_VALUE, z: 32-1} air"
         )
+      end
+      def self.& idx
+        normal_commands(idx, "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} filtered normal air")
+      end
+      def self.| idx
+        normal_commands(idx, "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} masked")
       end
       def self.jump idx, dst_idx
         [begin_command(idx), end_command(dst_idx)]
@@ -621,7 +627,7 @@ class Computer
         commands << ["clone #{bx} #{by} #{bz+8} #{bx+cw-1} #{by+ch-1} #{bz+8} #{DISPLAY[:src][:x]} #{DISPLAY[:src][:y]} #{DISPLAY[:src][:z]}"]
       end
       line_break="\n".ord
-      lbx, lby =base_x+line_break%16*cw,base_y+line_break/16*ch
+      lbx, lby = base_x+line_break%16*cw, base_y+line_break/16*ch
       commands << "testforblocks #{lbx} #{lby} #{base_z} #{lbx} #{lby} #{base_z+7} #{MEM_VALUE[:x]} #{MEM_VALUE[:y]} #{MEM_VALUE[:z]}"
       nx, ny, nz = DISPLAY[:next][:x], DISPLAY[:next][:y], DISPLAY[:next][:z]
       commands << ["setblock #{nx+1} #{ny+1} #{nz+2} redstone_block"]
@@ -766,11 +772,11 @@ Computer.new do
         var.mod5 = 0
         putc 'B';putc 'u';putc 'z';putc 'z'
       }
-      exec_if(var.mod3){exec_if(var.mod5){
+      exec_if(!!var.mod3 & !!var.mod5){
         exec_if(var.n10[2]){putc var.n10[2]+'0'}
         exec_if(var.n10[1]+var.n10[2]){putc var.n10[1]+'0'}
         putc var.n10[0]+'0'
-      }}
+      }
       putc ' '
     end
   }.compile
