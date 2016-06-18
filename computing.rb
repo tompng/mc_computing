@@ -55,10 +55,12 @@ class Computer
   def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
     Internal.prepare @world
-    instance_eval &block
   end
-  def add_compiled_code code
-    Internal.add_compiled_code @world, code
+  def encode
+    @world.encode
+  end
+  def code &block
+    Internal.add_compiled_code @world, DSL::Runtime.new(&block).compile
   end
 
   module Internal
@@ -787,34 +789,33 @@ class Computer
   end
 end
 
-Computer.new do
-  add_compiled_code DSL::Runtime.new{
-    variable :mod3, :mod5, :i, :n
-    var.mod3 = 0
-    var.mod5 = 0
-    exec_while(var.i < 4){
-      var.i += 1
-      putc '>'
-      putc getc+1
-      putc "\n"
+computer = Computer.new
+computer.code do
+  variable :mod3, :mod5, :i, :n
+  var.mod3 = 0
+  var.mod5 = 0
+  exec_while(var.i < 4){
+    var.i += 1
+    putc '>'
+    putc getc+1
+    putc "\n"
+  }
+  exec_while(1) do
+    var.mod3 += 1
+    var.mod5 += 1
+    var.n += 1
+    exec_if(var.mod3 == 3){
+      var.mod3 = 0
+      putc 'F';putc 'i';putc 'z';putc 'z'
     }
-    exec_while(1) do
-      var.mod3 += 1
-      var.mod5 += 1
-      var.n += 1
-      exec_if(var.mod3 == 3){
-        var.mod3 = 0
-        putc 'F';putc 'i';putc 'z';putc 'z'
-      }
-      exec_if(var.mod5 == 5){
-        var.mod5 = 0
-        putc 'B';putc 'u';putc 'z';putc 'z'
-      }
-      exec_if(!!var.mod3 & !!var.mod5){
-        puti var.n
-      }
-      putc ' '
-    end
-  }.compile
-  File.write outfile, @world.encode
+    exec_if(var.mod5 == 5){
+      var.mod5 = 0
+      putc 'B';putc 'u';putc 'z';putc 'z'
+    }
+    exec_if(!!var.mod3 & !!var.mod5){
+      puti var.n
+    }
+    putc ' '
+  end
 end
+File.write outfile, computer.encode
