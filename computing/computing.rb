@@ -705,13 +705,13 @@ class Computer
       }
       add[nil]
       7.times{|i|
-        add["testforblock #{x} #{y} #{z+2*i} stone", redstone: true]
+        add["testforblock #{x} #{y} #{z+i} stone", redstone: true]
         add["clone ~ ~ #{memz-size} ~ ~ #{memz-1} ~#{1<<i} ~ #{memz-size}", chain: true, cond: true]
         add["setblock ~#{1<<i} ~ ~-3 redstone_block", chain: true, cond: true]
         add["fill ~ ~ #{memz-1} ~ ~ #{memz-size} air", chain: true, cond: true]
         add["setblock ~ ~ ~-1 redstone_block", chain: true]
         add[nil]
-        add["testforblock #{x} #{y} #{z+2*i+1} stone", redstone: true]
+        add["testforblock #{x} #{y} #{z+i+7} stone", redstone: true]
         add["clone ~ ~ #{memz-size} ~ ~ #{memz-1} ~ ~#{1<<i} #{memz-size}", chain: true, cond: true]
         add["setblock ~ ~#{1<<i} ~-3 redstone_block", chain: true, cond: true]
         add["fill ~ ~ #{memz-1} ~ ~ #{memz-size} air", chain: true, cond: true]
@@ -795,13 +795,9 @@ class Computer
       prepare_keyboard world
     end
     def self.mem_addr_coord addr
-      x = 0
-      y = 0
+      x = addr&0x7f
+      y = (addr>>7)&0x7f
       z = 0
-      7.times{|i|
-        x |= addr&(1<<(2*i)) == 0 ? 0 : 1<<i
-        y |= addr&(1<<(2*i+1)) == 0 ? 0 : 1<<i
-      }
       z |= ((addr>>14)&1)<<1
       z |= ((addr>>15)&1)<<2
       {x: MEM_ADDRESS[:x]+x, y: MEM_ADDRESS[:y]+y, z: MEM_ADDRESS[:z]+VALUE_BITS*z}
