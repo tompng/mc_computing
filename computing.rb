@@ -40,6 +40,7 @@ class Computer
   OP_BITSHIFT_RIGHT = op_next_pos.call
   OP_NOT = op_next_pos.call
   OP_PUTI = op_next_pos.call
+  OP_PUTI_POSITIONS = (VALUE_BITS/4).times.map{op_next_pos.call}
 
   CODE = {x: 0, y: 128+32, z: 128}
   DISPLAY = {
@@ -143,7 +144,7 @@ class Computer
         ]
       end
       {
-        getc: KEYBOARD_READING, putc: OP_PUTC,
+        getc: KEYBOARD_READING, putc: OP_PUTC, puti: OP_PUTI_POSITIONS.first,
         mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE,
         :+ => OP_ADD, :* => OP_MULT,
         :> => OP_GT, :>= => OP_GTEQ, :< => OP_LT, :<= => OP_LTEQ
@@ -151,11 +152,6 @@ class Computer
         define_singleton_method op do |idx|
           callback_commands idx, "setblock #{mc_pos pos} redstone_block"
         end
-      end
-      CUSTOM_COMMAND_POS = {getc: KEYBOARD_READING, putc: OP_PUTC}
-      def self.custom idx, name
-        raise unless CUSTOM_COMMAND_POS.key? name
-        callback_commands idx, "setblock #{mc_pos CUSTOM_COMMAND_POS[name]} redstone_block"
       end
 
       def self.addr_coord pos
@@ -384,6 +380,61 @@ class Computer
       commands << "clone #{out1} #{out1} #{pos[addr1]}"
       commands << "fill #{out1} #{out2} air"
       commands << "setblock #{mc_pos OP_DONE} redstone_block"
+      commands
+    end
+
+    def self.op_puti_commands i
+      commands = []
+      if i == 0
+        commands << "clone #{mc_pos CALLBACK} #{mc_pos CALLBACK} #{mc_pos CALLBACK, z: 2} move"
+        commands << "clone #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}"
+        commands << "fill #{mc_int_range REG_TMP_VALUE} air"
+      end
+      display_flag_pos = mc_pos REG_TMP_VALUE
+      af_flag_pos = mc_pos REG_TMP_VALUE, z: 2
+      4.times{|j|
+        pos = mc_pos REG_VALUE, z: VALUE_BITS-4*(i+1)+j
+        commands << "clone #{pos} #{pos} #{display_flag_pos} masked"
+      }
+      commands << "fill #{mc_int_range MEM_VALUE} air"
+      commands << "clone #{mc_pos REG_VALUE, z: VALUE_BITS-4*(i+1)} #{mc_pos REG_VALUE, z: VALUE_BITS-4*i-1} #{mc_pos MEM_VALUE}"
+      commands << "testforblock #{mc_pos MEM_VALUE, z: 3} stone"
+      commands << ["testforblock #{mc_pos MEM_VALUE, z: 1} stone"]
+      commands << ["setblock #{af_flag_pos} stone"]
+      commands << "testforblock #{mc_pos MEM_VALUE, z: 3} stone"
+      commands << ["testforblock #{mc_pos MEM_VALUE, z: 2} stone"]
+      commands << ["setblock #{af_flag_pos} stone"]
+      commands << "testforblock #{af_flag_pos} air"
+      commands << ["fill #{mc_pos MEM_VALUE, z: 4} #{mc_pos MEM_VALUE, z: 5} stone"]
+      af_cond = "testforblock #{af_flag_pos} stone"
+      commands << af_cond
+      commands << ["fill #{mc_pos MEM_VALUE, z: 3} #{mc_pos MEM_VALUE, z: 5} air"]
+      commands << ["setblock #{mc_pos MEM_VALUE, z: 6} stone"]
+      (0xa..0xf).each do |n|
+        commands << af_cond
+        3.times.map{|i|
+          commands << ["testforblock #{mc_pos MEM_VALUE, z: i} #{[:air, :stone][(n>>i)&1]}"]
+        }
+        commands << ["setblock #{af_flag_pos} air"]
+        code = 'A'.ord+n-0xa
+        3.times.map{|i|
+          nbit = (n>>i)&1
+          cbit = (code>>i)&1
+          commands << ["setblock #{mc_pos MEM_VALUE, z: i} #{[:air, :stone][cbit]}"] if nbit != cbit
+        }
+      end
+      if i == VALUE_BITS/4 - 1
+        commands << "fill #{mc_pos REG_TMP_VALUE} #{mc_pos REG_VALUE, z: VALUE_BITS-1} air"
+        commands << "clone #{mc_pos CALLBACK, z: 2} #{mc_pos CALLBACK, z: 2} #{mc_pos CALLBACK} move"
+        commands << "setblock #{mc_pos OP_PUTC} redstone_block"
+      else
+        inner_command = "setblock #{mc_pos OP_PUTI_POSITIONS[i+1]} redstone_block"
+        commands << "setblock #{mc_pos CALLBACK} chain_command_block 0 0 {auto: 1, Command: \"#{inner_command}\"}"
+        commands << "testforblock #{display_flag_pos} stone"
+        commands << ["setblock #{mc_pos OP_PUTC} redstone_block"]
+        commands << "testforblock #{display_flag_pos} air"
+        commands << ["setblock #{mc_pos OP_DONE} redstone_block"]
+      end
       commands
     end
 
@@ -702,14 +753,17 @@ class Computer
           world.tile_entities[pos[:x],pos[:z]+i,pos[:y]] = tile_entity
         }
       end
-      set_command_blocks(world, op_add_commands(MEM_VALUE), OP_ADD);
-      set_command_blocks(world, op_mult_commands(MEM_VALUE), OP_MULT);
-      set_command_blocks(world, op_lt_commands(MEM_VALUE, swap: true), OP_GT);
-      set_command_blocks(world, op_lt_commands(MEM_VALUE, swap: true, eq: true), OP_GTEQ);
-      set_command_blocks(world, op_lt_commands(MEM_VALUE), OP_LT);
-      set_command_blocks(world, op_lt_commands(MEM_VALUE, eq: true), OP_LTEQ);
-      set_command_blocks(world, op_mem_commands(:get), OP_MEM_READ)
-      set_command_blocks(world, op_mem_commands(:set), OP_MEM_WRITE)
+      set_command_blocks world, op_add_commands(MEM_VALUE), OP_ADD
+      set_command_blocks world, op_mult_commands(MEM_VALUE), OP_MULT
+      set_command_blocks world, op_lt_commands(MEM_VALUE, swap: true), OP_GT
+      set_command_blocks world, op_lt_commands(MEM_VALUE, swap: true, eq: true), OP_GTEQ
+      set_command_blocks world, op_lt_commands(MEM_VALUE), OP_LT
+      set_command_blocks world, op_lt_commands(MEM_VALUE, eq: true), OP_LTEQ
+      set_command_blocks world, op_mem_commands(:get), OP_MEM_READ
+      set_command_blocks world, op_mem_commands(:set), OP_MEM_WRITE
+      OP_PUTI_POSITIONS.each_with_index do |pos, i|
+        set_command_blocks world, op_puti_commands(i), pos
+      end
 
       done_reset_pos = [OP_DONE[:x], OP_DONE[:z]+1, OP_DONE[:y]]
       world[*done_reset_pos] = MCWorld::Block::CommandBlock.z_plus
@@ -739,8 +793,7 @@ end
 
 Computer.new do
   add_compiled_code DSL::Runtime.new{
-    variable :mod3, :mod5, :i
-    array n10: 10
+    variable :mod3, :mod5, :i, :n
     var.mod3 = 0
     var.mod5 = 0
     exec_while(var.i < 4){
@@ -752,15 +805,7 @@ Computer.new do
     exec_while(1) do
       var.mod3 += 1
       var.mod5 += 1
-      var.n10[0] += 1
-      exec_if var.n10[0] == 10 do
-        var.n10[0] = 0
-        var.n10[1] += 1
-        exec_if var.n10[1] == 10 do
-          var.n10[1] = 0
-          var.n10[2] += 1
-        end
-      end
+      var.n += 1
       exec_if(var.mod3 == 3){
         var.mod3 = 0
         putc 'F';putc 'i';putc 'z';putc 'z'
@@ -770,9 +815,7 @@ Computer.new do
         putc 'B';putc 'u';putc 'z';putc 'z'
       }
       exec_if(!!var.mod3 & !!var.mod5){
-        exec_if(var.n10[2]){putc var.n10[2]+'0'}
-        exec_if(var.n10[1]+var.n10[2]){putc var.n10[1]+'0'}
-        putc var.n10[0]+'0'
+        puti var.n
       }
       putc ' '
     end
