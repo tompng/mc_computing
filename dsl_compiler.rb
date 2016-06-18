@@ -97,7 +97,10 @@ module DSL
           [
             *expr(stack, i),
             *expr(stack+1, v),
-            [:set, [:stack, stack], :ref],
+            [:set, [:stack, stack], :value],
+            [:const_set, a.address, :reg],
+            [:+],
+            [:set, :value, :ref],
             [:set, [:stack, stack+1], :value],
             [:mem_write]
           ]
@@ -109,11 +112,12 @@ module DSL
         else
           [
             *expr(stack, i),
-            [:set, [:stack, stack], :reg],
-            [:set, [:memory, a.address], :value],
+            [:set, [:stack, stack], :value],
+            [:const_set, a.address, :reg],
             [:+],
             [:set, :value, :ref],
-            [:mem_read]
+            [:mem_read],
+            [:set, :value, [:stack, stack]]
           ]
         end
       }
