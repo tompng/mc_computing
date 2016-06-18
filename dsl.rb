@@ -78,7 +78,7 @@ module DSL
       Variables.new @variables
     end
   end
-  Op2 = [:+, :-, :*, :==, :'!=', :>, :>=, :<, :<=, :[]]
+  Op2 = [:+, :-, :*, :==, :'!=', :>, :>=, :<, :<=, :[], :&, :|]
   Op1 = [:-@, :+@, :!]
   class Exp
     attr_reader :op, :args

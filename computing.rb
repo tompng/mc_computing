@@ -24,14 +24,21 @@ class Computer
   CALLBACK = {x:OP_DONE[:x], y: OP_DONE[:y], z: OP_DONE[:z]+2}
   OP_MULT = {x:32, y:128, z:128}
   op_x, op_y, op_z = 16, 128, 128
-  OP_MEM_READ = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_MEM_WRITE = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_ADD = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_GT = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_GTEQ = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_LT = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_LTEQ = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_PUTC = {x: op_x, y: op_y, z: op_z};op_z+=4
+  op_next_pos = ->{pos = {x: op_x, y: op_y, z: op_z};op_z+=2;pos}
+  OP_MEM_READ = op_next_pos.call
+  OP_MEM_WRITE = op_next_pos.call
+  OP_ADD = op_next_pos.call
+  OP_GT = op_next_pos.call
+  OP_GTEQ = op_next_pos.call
+  OP_LT = op_next_pos.call
+  OP_LTEQ = op_next_pos.call
+  OP_PUTC = op_next_pos.call
+  OP_BITOR = op_next_pos.call
+  OP_BITAND = op_next_pos.call
+  OP_BITSHIFT_LEFT = op_next_pos.call
+  OP_BITSHIFT_RIGHT = op_next_pos.call
+  OP_NOT = op_next_pos.call
+
   CODE = {x: 0, y: 128+32, z: 128}
   DISPLAY = {
     char: {w: 6, h: 10, wn: 20, hn: 12},
@@ -128,9 +135,10 @@ class Computer
         ]
       end
       {
-        putc: OP_PUTC, mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE, :+ => OP_ADD,
-        :* => OP_MULT, :> => OP_GT, :>= => OP_GTEQ, :< => OP_LT, :<= => OP_LTEQ,
-        getc: KEYBOARD_READING
+        getc: KEYBOARD_READING, putc: OP_PUTC,
+        mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE,
+        :+ => OP_ADD, :* => OP_MULT,
+        :> => OP_GT, :>= => OP_GTEQ, :< => OP_LT, :<= => OP_LTEQ
       }.each do |op, pos|
         define_singleton_method op do |idx|
           callback_commands idx, "setblock #{mc_pos pos} redstone_block"
