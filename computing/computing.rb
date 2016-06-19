@@ -527,7 +527,7 @@ class Computer
       }
     end
 
-    def self.sign_data bitmaps, command
+    def self.sign_data bitmaps, *commands
       data = {id: MCWorld::Tag::String.new('Sign')}
       ascii_json = ->data{
         data.to_json.gsub(/./){|s|
@@ -539,7 +539,7 @@ class Computer
           '＿▀▄█'[a|(b<<1)]
         }.join
         line_data = {text: text}
-        line_data[:clickEvent] = {action: :run_command, value: command} if i == 0
+        line_data[:clickEvent] = {action: :run_command, value: commands[i]} if commands[i]
         data["Text#{i+1}"] = MCWorld::Tag::String.new ascii_json[line_data]
       }
       MCWorld::Tag::Hash.new data
@@ -599,7 +599,6 @@ class Computer
       ]
       set_key_button = ->(x, y, offset, commands, face){
         sign_command = "setblock #{mc_pos KEYBOARD, x: x, y: y, z: offset-2} redstone_block"
-        world[KEYBOARD[:x]+x, KEYBOARD[:z]+offset-1, KEYBOARD[:y]+y] = MCWorld::Block::Stone
         world[KEYBOARD[:x]+x, KEYBOARD[:z]+offset, KEYBOARD[:y]+y] = MCWorld::Block::WallMountedSignBlock.z_plus
         world.tile_entities[KEYBOARD[:x]+x, KEYBOARD[:z]+offset , KEYBOARD[:y]+y] = sign_data face, sign_command
         commands.each_with_index do |command, i|
@@ -622,16 +621,17 @@ class Computer
         }
         commands << ["setblock #{mc_pos KEYBOARD_READING} air"]
         commands << ["setblock #{mc_pos OP_DONE} redstone_block"]
+        light_block = :sea_lantern
         if range
           commands << [
             [:fill,
               mc_pos(KEYBOARD, x: range[0][:x], y: range[0][:y], z: 1),
               mc_pos(KEYBOARD, x: range[1][:x], y: range[1][:y], z: 1),
-              :glowstone
+              light_block
             ].join(' ')
           ]
         else
-          commands << ["setblock #{mc_pos KEYBOARD, x: x, y: y, z: 1} glowstone"]
+          commands << ["setblock #{mc_pos KEYBOARD, x: x, y: y, z: 1} #{light_block}"]
         end
         set_key_button[x, y, offset, commands, face]
       }
@@ -647,14 +647,17 @@ class Computer
           }
         }
       }
-      [[keyboards1, true], [keyboards2, false]].each do |keyboards, shift|
+      [[keyboards1, false], [keyboards2, true]].each do |keyboards, shift|
+        offset = (shift ? 0 : -SHIFT_OFFSET)
+        14.times{|x|5.times{|y|
+          world[KEYBOARD[:x]+x, KEYBOARD[:z]+offset-1, KEYBOARD[:y]+y] = MCWorld::Block::Stone
+        }}
         keyboards.each_with_index do |line, li|
           line.chars.each_with_index do |c, x|
             next if c == ' '
-            set_char_button[x, (keyboards.size-li-1), (shift ? -SHIFT_OFFSET : 0), c.ord, face_from_code[c.ord]]
+            set_char_button[x, (keyboards.size-li-1), offset, c.ord, face_from_code[c.ord]]
           end
         end
-        offset = (shift ? -SHIFT_OFFSET : 0)
         space_range = [{x: 4, y: 0}, {x: 8, y: 0}]
         set_char_button[4, 0, offset, 0x20, [[1]*10,*[[1]+[0]*9]*6,[1]*10], space_range]
         (5..7).each{|i|
@@ -666,26 +669,28 @@ class Computer
 
         shift_commands = [
           "setblock ~ ~ ~+1 air",
-          "fill #{mc_pos KEYBOARD, z: 1} #{mc_pos KEYBOARD, x: 13, y: 4, z:1} stone",
           "clone #{mc_pos KEYBOARD, z: -SHIFT_OFFSET-offset} #{mc_pos KEYBOARD, x: 13, y: 4, z: -SHIFT_OFFSET-offset} #{mc_pos KEYBOARD_FACE}"
         ]
         set_key_button[0,  1, offset, shift_commands, shift_faces[shift ? 1 : 0]]
         set_key_button[13, 1, offset, shift_commands, shift_faces[shift ? 1 : 0]]
       end
       14.times{|x|5.times{|y|
-        world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]-1, KEYBOARD_FACE[:y]+y] = MCWorld::Block::Stone
+        world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]-1, KEYBOARD_FACE[:y]+y] = MCWorld::Block::SeaLantern
         world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]+y-1, KEYBOARD_FACE[:y]-1] = MCWorld::Block::Stone
-        src = KEYBOARD[:x]+x, KEYBOARD[:z], KEYBOARD[:y]+y
-        dst = KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z], KEYBOARD_FACE[:y]+y
-        world[*dst] = world[*src]
-        tile = world.tile_entities[*src]
-        world.tile_entities[*dst] = MCWorld::Tag::Hash.new tile.value.dup if tile
       }}
-      world[KEYBOARD_READING[:x],KEYBOARD_READING[:z],KEYBOARD_READING[:y]] = MCWorld::Block::RedstoneBlock
+      start_commands = [
+        "setblock #{mc_pos CODE} redstone_block",
+        "clone #{mc_pos KEYBOARD, z: -SHIFT_OFFSET-1} #{mc_pos KEYBOARD, x: 13, y: 4, z: -SHIFT_OFFSET} #{mc_pos KEYBOARD_FACE, z:-1}"
+      ]
+      start_message = "START"
+      start_message.each_char.with_index{|c, i|
+        pos = [KEYBOARD_FACE[:x]+(14-6)/2+i, KEYBOARD_FACE[:z], KEYBOARD_FACE[:y]+2]
+        world[*pos] = MCWorld::Block::WallMountedSignBlock.z_plus
+        world.tile_entities[*pos] = sign_data face_from_code[c.ord], *start_commands
+      }
       reading_set_pos = KEYBOARD_READING_SET[:x],KEYBOARD_READING_SET[:z],KEYBOARD_READING_SET[:y]
       world[*reading_set_pos] = MCWorld::Block::CommandBlock
       world.tile_entities[*reading_set_pos] = command_data "fill #{mc_pos KEYBOARD, z: 1} #{mc_pos KEYBOARD, x: 13, y: 4, z:1} stone", redstone: true
-
     end
 
     def self.prepare_chartable world
@@ -827,8 +832,6 @@ class Computer
       world[*done_reset_pos] = MCWorld::Block::CommandBlock.z_plus
       world.tile_entities[*done_reset_pos] = command_data "setblock #{mc_pos OP_DONE} air", redstone: true
       callback_pos = [CALLBACK[:x], CALLBACK[:z], CALLBACK[:y]]
-      world[*callback_pos] = MCWorld::Block::ChainCommandBlock.z_plus
-      world.tile_entities[*callback_pos] = command_data "setblock #{mc_pos CODE} redstone_block"
 
       prepare_display world
       prepare_chartable world
