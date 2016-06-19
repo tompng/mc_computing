@@ -596,7 +596,8 @@ class Computer
         end
         set_key_button[x, y, offset, commands, face]
       }
-      img = ChunkyPNG::Image.from_file "keyboard.png"
+      file = File.expand_path 'keyboard.png', File.dirname(__FILE__)
+      img = ChunkyPNG::Image.from_file file
       cw, ch = 8, 8
       face_from_code = ->code{
         cx = code%16*cw
@@ -650,7 +651,8 @@ class Computer
 
     def self.prepare_chartable world
       base_x,base_y,base_z = CHARTABLE[:x], CHARTABLE[:y], CHARTABLE[:z]
-      img = ChunkyPNG::Image.from_file "chars.png"
+      file = File.expand_path 'chars.png', File.dirname(__FILE__)
+      img = ChunkyPNG::Image.from_file file
       cw, ch = DISPLAY[:char][:w], DISPLAY[:char][:h]
       128.times{|i|
         cx = i%16*cw
