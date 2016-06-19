@@ -571,11 +571,19 @@ class Computer
         }
         lines
       }
-      shift_face=aa_to_face[
-        %(  .'.  ),
-        %(.:. .:.),
-        %(  : :  ),
-        %(  :.:  ),
+      shift_faces = [
+        aa_to_face[
+          %(  .'.  ),
+          %(.:. .:.),
+          %(  : :  ),
+          %(  :.:  ),
+        ],
+        aa_to_face[
+          %(  .:.  ),
+          %(.:::::.),
+          %(  :::  ),
+          %(  :::  ),
+        ]
       ]
       delete_face=aa_to_face[
         %(  .'''''':),
@@ -661,8 +669,8 @@ class Computer
           "fill #{mc_pos KEYBOARD, z: 1} #{mc_pos KEYBOARD, x: 13, y: 4, z:1} stone",
           "clone #{mc_pos KEYBOARD, z: -SHIFT_OFFSET-offset} #{mc_pos KEYBOARD, x: 13, y: 4, z: -SHIFT_OFFSET-offset} #{mc_pos KEYBOARD_FACE}"
         ]
-        set_key_button[0,  1, offset, shift_commands, shift_face]
-        set_key_button[13, 1, offset, shift_commands, shift_face]
+        set_key_button[0,  1, offset, shift_commands, shift_faces[shift ? 1 : 0]]
+        set_key_button[13, 1, offset, shift_commands, shift_faces[shift ? 1 : 0]]
       end
       14.times{|x|5.times{|y|
         world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]-1, KEYBOARD_FACE[:y]+y] = MCWorld::Block::Stone
