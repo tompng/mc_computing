@@ -1,9 +1,5 @@
 require_relative '../computing/computing'
-save_dir = '~/Library/Application Support/minecraft/saves/' #if Mac
-world_name = 'computer'
-outfile = File.expand_path "#{save_dir}#{world_name}/region/r.0.0.mca"
-computer = Computer.new
-computer.code do
+computer = Computer.new do
   array data: 127*128
   variable :x, :y, :index, :shape
   var.shape = 1
@@ -23,4 +19,6 @@ computer.code do
     var.index += 128
   end
 end
-File.write outfile, computer.encode
+File.write 'r.0.0.mca', computer.world_data
+#replace "<minecraft_save_dir>/<world_name>/region/r.0.0.mca" with "./r.0.0.mca"
+#for mac, it's "~/Library/Application Support/minecraft/saves/<world_name>/region/r.0.0.mca"

@@ -57,12 +57,10 @@ class Computer
   def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
     Internal.prepare @world
-  end
-  def encode
-    @world.encode
-  end
-  def code &block
     Internal.add_compiled_code @world, DSL::Runtime.new(&block).compile
+  end
+  def world_data
+    @world.encode
   end
 
   module Internal
