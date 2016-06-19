@@ -1,8 +1,6 @@
 require_relative '../computing/computing'
 computer = Computer.new do
   variable :mod3, :mod5, :n
-  var.mod3 = 0
-  var.mod5 = 0
   exec_while true do
     var.mod3 += 1
     var.mod5 += 1
