@@ -125,6 +125,10 @@ module DSL
         @value = value.ord
       when Numeric
         @value = value.round
+      when true
+        @value = 1
+      when false
+        @value = 0
       else
         raise
       end
