@@ -22,5 +22,3 @@ computer = Computer.new do
   end
 end
 File.write 'r.0.0.mca', computer.world_data
-#replace "<minecraft_save_dir>/<world_name>/region/r.0.0.mca" with "./r.0.0.mca"
-#for mac, it's "~/Library/Application Support/minecraft/saves/<world_name>/region/r.0.0.mca"
