@@ -122,10 +122,41 @@ class Computer
         )
       end
       def self.& idx
-        normal_commands(idx, "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} filtered normal air")
+        normal_commands idx, "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} filtered normal air"
       end
       def self.| idx
-        normal_commands(idx, "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} masked")
+        normal_commands idx, "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} masked"
+      end
+      def self.~ idx
+        normal_commands(
+          idx,
+          "fill #{mc_int_range REG_TMP_VALUE} dirt",
+          "clone #{mc_int_range MEM_VALUE} #{mc_pos REG_TMP_VALUE} filtered normal air",
+          "fill #{mc_int_range REG_VALUE} stone",
+          "clone #{mc_int_range REG_TMP_VALUE} #{mc_pos REG_VALUE} masked",
+          "fill #{mc_int_range MEM_VALUE} air",
+          "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} filtered normal stone",
+          "fill #{mc_int_range REG_VALUE} air",
+          "fill #{mc_int_range REG_TMP_VALUE} air"
+        )
+      end
+
+      def self.^ idx
+        normal_commands(
+          idx,
+          "clone #{mc_int_range REG_VALUE} #{mc_pos REG_TMP_VALUE}",
+          "clone #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE} filtered normal air",
+          "clone #{mc_int_range REG_TMP_VALUE} #{mc_pos MEM_VALUE} masked",
+          "fill #{mc_int_range REG_TMP_VALUE} dirt",
+          "clone #{mc_int_range REG_VALUE} #{mc_pos REG_TMP_VALUE} filtered normal air",
+          "fill #{mc_int_range REG_VALUE} stone",
+          "clone #{mc_int_range REG_TMP_VALUE} #{mc_pos REG_VALUE} masked",
+          "fill #{mc_int_range REG_TMP_VALUE} air",
+          "clone #{mc_int_range REG_VALUE} #{mc_pos REG_TMP_VALUE} filtered normal stone",
+          "clone #{mc_int_range REG_TMP_VALUE} #{mc_pos MEM_VALUE} filtered normal air",
+          "fill #{mc_int_range REG_TMP_VALUE} air",
+          "fill #{mc_int_range REG_VALUE} air"
+        )
       end
       def self.jump idx, dst_idx
         [begin_command(idx), end_command(dst_idx)]
