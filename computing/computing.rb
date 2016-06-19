@@ -2,45 +2,54 @@ require 'bundler/inline'
 require 'json'
 gemfile do
   source 'https://rubygems.org/'
-
   gem 'pry'
   gem 'chunky_png'
 end
 
-require_relative 'mc_world/world'
-require_relative 'dsl'
-outfile=File.expand_path('~/Library/Application Support/minecraft/saves/computer/region/r.0.0.mca')
+require_relative '../mc_world/world'
+require_relative 'dsl_compiler'
+DSL::Runtime.define_custom_statement :putc, arity: 1
+DSL::Runtime.define_custom_statement :puti, arity: 1
+DSL::Runtime.define_custom_expression :getc
 class Computer
   VALUE_BITS = 32
-  MEM_ADDRESS = {x: 0, y: 0, z: 128}
-  SEEK_GET = {x: 0, y:128, z:128}
-  SEEK_SET = {x: 1, y:128, z:128}
-  MEM_REF = {x: 2, y: 128, z: 128}
-  MEM_VALUE = {x:3, y: 128, z: 128}
-  REG_VALUE = {x: 4, y: 128 ,z: 128}
-  REG_TMP_VALUE = {x: 5, y: 128 ,z: 128}
-  OP_DONE = {x:0, y:128+4, z: 128}
-  CALLBACK = {x:OP_DONE[:x], y: OP_DONE[:y], z: OP_DONE[:z]+2}
-  OP_MULT = {x:32, y:128, z:128}
-  op_x, op_y, op_z = 16, 128, 128
-  OP_MEM_READ = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_MEM_WRITE = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_ADD = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_GT = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_GTEQ = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_LT = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_LTEQ = {x: op_x, y: op_y, z: op_z};op_z+=4
-  OP_PUTC = {x: op_x, y: op_y, z: op_z};op_z+=4
-  CODE = {x: 0, y: 128+32, z: 128}
+  BASE_POSITION = {x: 128, y: 0, z: 128}
+  relative_position = ->pos{BASE_POSITION.map{|k,v|[k, v+(pos[k]||0)]}.to_h}
+  MEM_ADDRESS = relative_position[x: 0, y: 0, z: 128]
+  MEM_HEAD_OFFSET = 1
+  SEEK_GET = relative_position[x: 0, y:128, z:128]
+  SEEK_SET = relative_position[x: 1, y:128, z:128]
+  MEM_REF = relative_position[x: 2, y: 128, z: 128]
+  MEM_VALUE = relative_position[x:3, y: 128, z: 128]
+  REG_VALUE = relative_position[x: 4, y: 128 ,z: 128]
+  REG_TMP_VALUE = relative_position[x: 5, y: 128 ,z: 128]
+  STACK_BASE_COORD=relative_position[x: 2, y: 128+2, z: 128]
+  STACK_COORD = ->i{STACK_BASE_COORD.merge x: STACK_BASE_COORD[:x]+i%12, y: STACK_BASE_COORD[:y]+i/12}
+  OP_DONE = relative_position[x: 0, y: 128+4, z: 128]
+  CALLBACK = {x: OP_DONE[:x], y: OP_DONE[:y], z: OP_DONE[:z]+2}
+  OP_MULT = relative_position[x:32, y:128, z:128]
+  op_pos = relative_position[x: 16, y: 128, z: 128]
+  op_next_pos = ->{pos = op_pos.dup;op_pos[:z]+=2;pos}
+  OP_MEM_READ = op_next_pos.call
+  OP_MEM_WRITE = op_next_pos.call
+  OP_ADD = op_next_pos.call
+  OP_GT = op_next_pos.call
+  OP_GTEQ = op_next_pos.call
+  OP_LT = op_next_pos.call
+  OP_LTEQ = op_next_pos.call
+  OP_PUTC = op_next_pos.call
+  OP_PUTI_POSITIONS = (VALUE_BITS/4).times.map{op_next_pos.call}
+
+  CODE = relative_position[x: 0, y: 128+32, z: 128]
   DISPLAY = {
     char: {w: 6, h: 10, wn: 20, hn: 12},
-    base: {x: 0, y:128, z:0},
-    src: {x: 0, y: 132, z: 120},
-    next: {x:0, y:132, z: 121},
-    callback: {x:1, y:132, z: 121}
+    base: relative_position[x: 0, y:128, z:0],
+    src: relative_position[x: 0, y: 132, z: 120],
+    next: relative_position[x:0, y:132, z: 121],
+    callback: relative_position[x:1, y:132, z: 121]
   }
-  CHARTABLE = {x: 0, y: 0, z: 0}
-  KEYBOARD_FACE = {x:64-7,y:130,z:127}
+  CHARTABLE = relative_position[x: 0, y: 0, z: 0]
+  KEYBOARD_FACE = relative_position[x: 64-7, y: 130, z: 127]
   KEYBOARD = KEYBOARD_FACE.merge z: KEYBOARD_FACE[:z]-2
   SHIFT_OFFSET = 16
   KEYBOARD_READING = KEYBOARD.merge z: KEYBOARD[:z]-32
@@ -48,10 +57,10 @@ class Computer
   def initialize &block
     @world = MCWorld::World.new x: 0, z: 0
     Internal.prepare @world
-    instance_eval &block
+    Internal.add_compiled_code @world, DSL::Runtime.new(&block).compile
   end
-  def add_compiled_code code
-    Internal.add_compiled_code @world, code
+  def world_data
+    @world.encode
   end
 
   module Internal
@@ -81,9 +90,6 @@ class Computer
     extend PointUtil
     module BaseOp
       extend PointUtil
-      def self.reg_set idx
-        normal_commands idx, "clone #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}"
-      end
       def self.read idx, address
         normal_commands idx, "clone #{mc_int_range Internal.mem_addr_coord(address)} #{mc_pos MEM_VALUE}"
       end
@@ -115,10 +121,11 @@ class Computer
           "fill #{mc_pos MEM_VALUE, z:1} #{mc_pos MEM_VALUE, z: 32-1} air"
         )
       end
-      def self.val_set idx, val
-        normal_commands idx, *32.times.map{|i|
-          "setblock #{mc_pos MEM_VALUE, z: i} #{[:air, :stone][(val>>i)&1]}"
-        }
+      def self.& idx
+        normal_commands(idx, "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} filtered normal air")
+      end
+      def self.| idx
+        normal_commands(idx, "clone #{mc_int_range REG_VALUE} #{mc_pos MEM_VALUE} masked")
       end
       def self.jump idx, dst_idx
         [begin_command(idx), end_command(dst_idx)]
@@ -135,16 +142,44 @@ class Computer
         ]
       end
       {
-        putc: OP_PUTC, mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE, :+ => OP_ADD,
-        :* => OP_MULT, :> => OP_GT, :>= => OP_GTEQ, :< => OP_LT, :<= => OP_LTEQ,
-        getc: KEYBOARD_READING
+        getc: KEYBOARD_READING, putc: OP_PUTC, puti: OP_PUTI_POSITIONS.first,
+        mem_read: OP_MEM_READ, mem_write: OP_MEM_WRITE,
+        :+ => OP_ADD, :* => OP_MULT,
+        :> => OP_GT, :>= => OP_GTEQ, :< => OP_LT, :<= => OP_LTEQ
       }.each do |op, pos|
         define_singleton_method op do |idx|
           callback_commands idx, "setblock #{mc_pos pos} redstone_block"
         end
       end
-      def self.ref_set idx
-        normal_commands idx, "clone #{mc_short_rage MEM_VALUE} #{mc_pos MEM_REF}"
+
+      def self.addr_coord pos
+        type, idx = pos
+        case type
+        when :value
+          MEM_VALUE
+        when :reg
+          REG_VALUE
+        when :ref
+          MEM_REF
+        when :stack
+          STACK_COORD[idx]
+        when :memory
+          Internal.mem_addr_coord idx
+        else
+          raise
+        end
+      end
+      def self.const_set idx, value, to
+        normal_commands(
+          idx,
+          "fill #{mc_int_range addr_coord(to)} air",
+          *32.times.map{|i|
+            "setblock #{mc_pos addr_coord(to), z: i} stone" if (value >> i) & 1 == 1
+          }.compact
+        )
+      end
+      def self.set idx, from, to
+        normal_commands idx, "clone #{mc_int_range addr_coord(from)} #{mc_pos addr_coord(to)}"
       end
       def self.begin_command idx
         "setblock #{mc_pos code_pos idx} air"
@@ -242,12 +277,9 @@ class Computer
     def self.op_mem_commands mode
       pos, size = seek_blocks_info mode
       [
-        "clone #{mc_pos pos} #{mc_pos pos, z: size-1} #{mc_pos MEM_ADDRESS, z: -size}",
-        "setblock #{mc_pos MEM_ADDRESS, z: -1} redstone_block"
+        "clone #{mc_pos pos} #{mc_pos pos, z: size-1} #{mc_pos MEM_ADDRESS, z: -size-MEM_HEAD_OFFSET}",
+        "setblock #{mc_pos MEM_ADDRESS, z: -1-MEM_HEAD_OFFSET} redstone_block"
       ]
-    end
-    def mem_op_execute_command
-      "setblock #{MEM_ADDRESS[:x]} #{MEM_ADDRESS[:y]} #{MEM_ADDRESS[:z]-1} redstone_block"
     end
 
     def self.add_compiled_code world, code
@@ -349,6 +381,61 @@ class Computer
       commands
     end
 
+    def self.op_puti_commands i
+      commands = []
+      if i == 0
+        commands << "clone #{mc_pos CALLBACK} #{mc_pos CALLBACK} #{mc_pos CALLBACK, z: 2} move"
+        commands << "clone #{mc_int_range MEM_VALUE} #{mc_pos REG_VALUE}"
+        commands << "fill #{mc_int_range REG_TMP_VALUE} air"
+      end
+      display_flag_pos = mc_pos REG_TMP_VALUE
+      af_flag_pos = mc_pos REG_TMP_VALUE, z: 2
+      4.times{|j|
+        pos = mc_pos REG_VALUE, z: VALUE_BITS-4*(i+1)+j
+        commands << "clone #{pos} #{pos} #{display_flag_pos} masked"
+      }
+      commands << "fill #{mc_int_range MEM_VALUE} air"
+      commands << "clone #{mc_pos REG_VALUE, z: VALUE_BITS-4*(i+1)} #{mc_pos REG_VALUE, z: VALUE_BITS-4*i-1} #{mc_pos MEM_VALUE}"
+      commands << "testforblock #{mc_pos MEM_VALUE, z: 3} stone"
+      commands << ["testforblock #{mc_pos MEM_VALUE, z: 1} stone"]
+      commands << ["setblock #{af_flag_pos} stone"]
+      commands << "testforblock #{mc_pos MEM_VALUE, z: 3} stone"
+      commands << ["testforblock #{mc_pos MEM_VALUE, z: 2} stone"]
+      commands << ["setblock #{af_flag_pos} stone"]
+      commands << "testforblock #{af_flag_pos} air"
+      commands << ["fill #{mc_pos MEM_VALUE, z: 4} #{mc_pos MEM_VALUE, z: 5} stone"]
+      af_cond = "testforblock #{af_flag_pos} stone"
+      commands << af_cond
+      commands << ["fill #{mc_pos MEM_VALUE, z: 3} #{mc_pos MEM_VALUE, z: 5} air"]
+      commands << ["setblock #{mc_pos MEM_VALUE, z: 6} stone"]
+      (0xa..0xf).each do |n|
+        commands << af_cond
+        3.times.map{|i|
+          commands << ["testforblock #{mc_pos MEM_VALUE, z: i} #{[:air, :stone][(n>>i)&1]}"]
+        }
+        commands << ["setblock #{af_flag_pos} air"]
+        code = 'A'.ord+n-0xa
+        3.times.map{|i|
+          nbit = (n>>i)&1
+          cbit = (code>>i)&1
+          commands << ["setblock #{mc_pos MEM_VALUE, z: i} #{[:air, :stone][cbit]}"] if nbit != cbit
+        }
+      end
+      if i == VALUE_BITS/4 - 1
+        commands << "fill #{mc_pos REG_TMP_VALUE} #{mc_pos REG_VALUE, z: VALUE_BITS-1} air"
+        commands << "clone #{mc_pos CALLBACK, z: 2} #{mc_pos CALLBACK, z: 2} #{mc_pos CALLBACK} move"
+        commands << "setblock #{mc_pos OP_PUTC} redstone_block"
+      else
+        inner_command = "setblock #{mc_pos OP_PUTI_POSITIONS[i+1]} redstone_block"
+        commands << "setblock #{mc_pos CALLBACK} chain_command_block 0 0 {auto: 1, Command: \"#{inner_command}\"}"
+        commands << "testforblock #{display_flag_pos} stone"
+        commands << ["setblock #{mc_pos OP_PUTC} redstone_block"]
+        commands << "testforblock #{display_flag_pos} air"
+        commands << ["setblock #{mc_pos OP_DONE} redstone_block"]
+      end
+      commands
+    end
+
     def self.prepare_display world
       char = DISPLAY[:char]
       char_w, char_h, char_wn, char_hn = char[:w], char[:h], char[:wn], char[:hn]
@@ -436,7 +523,7 @@ class Computer
       ]
       keyboards2 = [
         %(~!@#$%^&*()_+ ),
-        %( QWERTYUIOP[]|),
+        %( QWERTYUIOP{}|),
         %( ASDFGHJKL:"  ),
         %(  ZXCVBNM<>?  ),
         %(              )
@@ -547,7 +634,7 @@ class Computer
       end
       14.times{|x|5.times{|y|
         world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]-1, KEYBOARD_FACE[:y]+y] = MCWorld::Block::Stone
-        world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]+y, KEYBOARD_FACE[:y]-1] = MCWorld::Block::Stone
+        world[KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z]+y-1, KEYBOARD_FACE[:y]-1] = MCWorld::Block::Stone
         src = KEYBOARD[:x]+x, KEYBOARD[:z], KEYBOARD[:y]+y
         dst = KEYBOARD_FACE[:x]+x, KEYBOARD_FACE[:z], KEYBOARD_FACE[:y]+y
         world[*dst] = world[*src]
@@ -586,7 +673,7 @@ class Computer
         commands << ["clone #{bx} #{by} #{bz+8} #{bx+cw-1} #{by+ch-1} #{bz+8} #{DISPLAY[:src][:x]} #{DISPLAY[:src][:y]} #{DISPLAY[:src][:z]}"]
       end
       line_break="\n".ord
-      lbx, lby =base_x+line_break%16*cw,base_y+line_break/16*ch
+      lbx, lby = base_x+line_break%16*cw, base_y+line_break/16*ch
       commands << "testforblocks #{lbx} #{lby} #{base_z} #{lbx} #{lby} #{base_z+7} #{MEM_VALUE[:x]} #{MEM_VALUE[:y]} #{MEM_VALUE[:z]}"
       nx, ny, nz = DISPLAY[:next][:x], DISPLAY[:next][:y], DISPLAY[:next][:z]
       commands << ["setblock #{nx+1} #{ny+1} #{nz+2} redstone_block"]
@@ -617,16 +704,16 @@ class Computer
       }
       add[nil]
       7.times{|i|
-        add["testforblock #{x} #{y} #{z+2*i} stone", redstone: true]
-        add["clone ~ ~ #{memz-size} ~ ~ #{memz-1} ~#{1<<i} ~ #{memz-size}", chain: true, cond: true]
+        add["testforblock #{x} #{y} #{z+i} stone", redstone: true]
+        add["clone ~ ~ #{memz-size-MEM_HEAD_OFFSET} ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~#{1<<i} ~ #{memz-size-MEM_HEAD_OFFSET}", chain: true, cond: true]
         add["setblock ~#{1<<i} ~ ~-3 redstone_block", chain: true, cond: true]
-        add["fill ~ ~ #{memz-1} ~ ~ #{memz-size} air", chain: true, cond: true]
+        add["fill ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~ ~ #{memz-size-MEM_HEAD_OFFSET} air", chain: true, cond: true]
         add["setblock ~ ~ ~-1 redstone_block", chain: true]
         add[nil]
-        add["testforblock #{x} #{y} #{z+2*i+1} stone", redstone: true]
-        add["clone ~ ~ #{memz-size} ~ ~ #{memz-1} ~ ~#{1<<i} #{memz-size}", chain: true, cond: true]
+        add["testforblock #{x} #{y} #{z+i+7} stone", redstone: true]
+        add["clone ~ ~ #{memz-size-MEM_HEAD_OFFSET} ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~ ~#{1<<i} #{memz-size-MEM_HEAD_OFFSET}", chain: true, cond: true]
         add["setblock ~ ~#{1<<i} ~-3 redstone_block", chain: true, cond: true]
-        add["fill ~ ~ #{memz-1} ~ ~ #{memz-size} air", chain: true, cond: true]
+        add["fill ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~ ~ #{memz-size-MEM_HEAD_OFFSET} air", chain: true, cond: true]
         add["setblock ~ ~ ~-1 redstone_block", chain: true]
         add[nil]
       }
@@ -644,7 +731,7 @@ class Computer
         end
       }
       add["setblock #{OP_DONE[:x]} #{OP_DONE[:y]} #{OP_DONE[:z]} redstone_block", chain: true]
-      add["fill ~ ~ #{memz-1} ~ ~ #{memz-size} air", chain: true]
+      add["fill ~ ~ #{memz-MEM_HEAD_OFFSET-1} ~ ~ #{memz-size-MEM_HEAD_OFFSET} air", chain: true]
       blocks.reverse
     end
     def self.seek_get_blocks;@seek_get_blocks||=gen_seek_blocks :get;end
@@ -657,6 +744,25 @@ class Computer
       end
     end
     def self.prepare world
+      (-32...128+32).each{|x|
+        (-32...256+32).each{|z|
+          world[BASE_POSITION[:x]+x, BASE_POSITION[:z]+z, 0]=nil
+        }
+      }
+      mem_border_set=->(dx, dz, dy){world[MEM_ADDRESS[:x]+dx, MEM_ADDRESS[:z]+dz, MEM_ADDRESS[:y]+dy]=MCWorld::Block::Bedrock}
+      128.times do |i|
+        [0,127].each do |y|
+          mem_border_set[i,-1,y]
+          mem_border_set[-1,i,y]
+          mem_border_set[i,128,y]
+          mem_border_set[128,i,y]
+        end
+        mem_border_set[-1,-1,i]
+        mem_border_set[-1,128,i]
+        mem_border_set[128,-1,i]
+        mem_border_set[128,128,i]
+      end
+
       [[seek_get_blocks, SEEK_GET], [seek_set_blocks, SEEK_SET]].each do |block_tile_entities, pos|
         block_tile_entities.each_with_index{|bt, i|
           block, tile_entity = bt
@@ -664,14 +770,17 @@ class Computer
           world.tile_entities[pos[:x],pos[:z]+i,pos[:y]] = tile_entity
         }
       end
-      set_command_blocks(world, op_add_commands(MEM_VALUE), OP_ADD);
-      set_command_blocks(world, op_mult_commands(MEM_VALUE), OP_MULT);
-      set_command_blocks(world, op_lt_commands(MEM_VALUE, swap: true), OP_GT);
-      set_command_blocks(world, op_lt_commands(MEM_VALUE, swap: true, eq: true), OP_GTEQ);
-      set_command_blocks(world, op_lt_commands(MEM_VALUE), OP_LT);
-      set_command_blocks(world, op_lt_commands(MEM_VALUE, eq: true), OP_LTEQ);
-      set_command_blocks(world, op_mem_commands(:get), OP_MEM_READ)
-      set_command_blocks(world, op_mem_commands(:set), OP_MEM_WRITE)
+      set_command_blocks world, op_add_commands(MEM_VALUE), OP_ADD
+      set_command_blocks world, op_mult_commands(MEM_VALUE), OP_MULT
+      set_command_blocks world, op_lt_commands(MEM_VALUE, swap: true), OP_GT
+      set_command_blocks world, op_lt_commands(MEM_VALUE, swap: true, eq: true), OP_GTEQ
+      set_command_blocks world, op_lt_commands(MEM_VALUE), OP_LT
+      set_command_blocks world, op_lt_commands(MEM_VALUE, eq: true), OP_LTEQ
+      set_command_blocks world, op_mem_commands(:get), OP_MEM_READ
+      set_command_blocks world, op_mem_commands(:set), OP_MEM_WRITE
+      OP_PUTI_POSITIONS.each_with_index do |pos, i|
+        set_command_blocks world, op_puti_commands(i), pos
+      end
 
       done_reset_pos = [OP_DONE[:x], OP_DONE[:z]+1, OP_DONE[:y]]
       world[*done_reset_pos] = MCWorld::Block::CommandBlock.z_plus
@@ -685,72 +794,12 @@ class Computer
       prepare_keyboard world
     end
     def self.mem_addr_coord addr
-      x = 0
-      y = 0
+      x = addr&0x7f
+      y = (addr>>7)&0x7f
       z = 0
-      7.times{|i|
-        x |= addr&(1<<(2*i)) == 0 ? 0 : 1<<i
-        y |= addr&(1<<(2*i+1)) == 0 ? 0 : 1<<i
-      }
       z |= ((addr>>14)&1)<<1
       z |= ((addr>>15)&1)<<2
       {x: MEM_ADDRESS[:x]+x, y: MEM_ADDRESS[:y]+y, z: MEM_ADDRESS[:z]+VALUE_BITS*z}
     end
   end
-end
-
-Computer.new do
-  add_compiled_code DSL::Runtime.new{
-    variable :mod3, :mod5, :tmp, :tmp2
-    array n10: 10
-    var.mod3 = 0
-    var.mod5 = 0
-    var.tmp = 0
-    exec_while(var.tmp < 4){
-      var.tmp += 1
-      var.tmp2 = getc
-      var.tmp2 += 1
-      putc var.tmp2
-    }
-    exec_while(1) do
-      var.mod3 += 1
-      var.mod5 += 1
-      var.tmp = var.n10[0]
-      var.tmp += 1
-      var.n10[0] = var.tmp
-      exec_if var.tmp == 10 do
-        var.n10[0] = 0
-        var.tmp = var.n10[1]
-        var.tmp += 1
-        var.n10[1] = var.tmp
-        exec_if var.tmp == 10 do
-          var.n10[1] = 0
-          var.tmp = var.n10[2]
-          var.tmp += 1
-          var.n10[2] = var.tmp
-        end
-      end
-      exec_if(var.mod3 == 3){
-        var.mod3 = 0
-        putc 'F';putc 'i';putc 'z';putc 'z'
-      }
-      exec_if(var.mod5 == 5){
-        var.mod5 = 0
-        putc 'B';putc 'u';putc 'z';putc 'z'
-      }
-      exec_if(var.mod3){exec_if(var.mod5){
-        var.tmp = var.n10[2];
-        exec_if(var.tmp){
-          putc var.tmp+'0'
-        }
-        var.tmp2 = var.n10[1]
-        var.tmp += var.tmp2
-        exec_if(var.tmp){putc var.tmp2+'0'}
-        var.tmp=var.n10[0]
-        putc var.tmp+'0'
-      }}
-      putc ' '
-    end
-  }.compile
-  File.write outfile, @world.encode
 end
