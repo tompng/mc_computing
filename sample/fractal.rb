@@ -1,6 +1,6 @@
 require_relative '../computing/computing'
 computer = Computer.new do
-  array data: 127*128
+  array data: 128*128
   variable :x, :y, :index, :shape
   "Memory 3D Plot\n".each_char{|c|putc c}
   var.shape = 1
