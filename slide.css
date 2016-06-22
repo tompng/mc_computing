@@ -1,0 +1,25 @@
+body{background:black;}
+.page-wrapper{
+  position:fixed;
+  left:0;top:0;
+}
+.page{
+  width: 800px;
+  height: 600px;
+  overflow: hidden;
+  display: none;
+  position: absolute;
+  background: white;
+  font-size: 40px;
+  left:0;top:0;
+  font-family: Osaka, Courier;
+}
+.page.active{
+  display: block;
+}
+
+comment{
+  font-size: 16px;
+  opacity: 0.5;
+  position:absolute;left:0;bottom:0;
+}
