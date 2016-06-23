@@ -31,7 +31,6 @@ function nextPage(dir){
 function afterPage(page){
   var video = page.querySelector('video');
   if(!video)return;
-  console.error(video.timer);
   clearInterval(video.timer);
   video.pause();
   displays = page.querySelectorAll('[display-start]');
