@@ -47,12 +47,17 @@
   </div>
 
   <div class='page'>
-    <video src=out1.mp4 delay=1></video>
-    <h1 class=layer display-start=1 display-end=2>メモリ</h1>
-    <h1 class=layer display-start=3 display-end=4>CPU</h1>
-    <h1 class=layer display-start=5 display-end=6>STDOUT</h1>
-    <h1 class=layer display-start=7 display-end=8>STDIN</h1>
-    <h1 class=layer display-start=7>CODE</h1>
+    <video src=out1.mp4 delay=2></video>
+    <h1 class=text display-start=0.01 display-end=2>Minecraft Computer</h1>
+    <img src='memory.png' class='layer-image' display-start=3.5 display-end=5.5>
+    <h1 class=text display-start=3.5 display-end=5.5>Memory</h1>
+    <h1 class=text display-start=7 display-end=9 style='left: 300px;botom: 100px;'>bits</h1>
+    <h1 class=text display-start=14 display-end=15 style='left: 300px;top: 50px'>CPU</h1>
+    <h1 class=text display-start=18 display-end=20 style='left:100px;'>STDOUT</h1>
+    <h1 class=text display-start=22 display-end=24>STDIN</h1>
+    <img src='code.png' class='layer-image' display-start=30>
+    <h1 class=text display-start=28 display-end=30>CODE</h1>
+    <h1 class=text display-start=31><br>program counter</h1>
     <comment>メモリはこの枠の中の空間！石か空気かで1bitを表します
     加算、乗算、比較などをするCPU
     標準出力のディスプレイと
@@ -80,10 +85,9 @@
     <video src=out2.mp4></video>
   </div>
 
-
   <div class='page' style='background:black'>
     <video src=out3.mp4></video>
-    <h1 class='layer' display-start=20>1時間後</h1>
+    <h1 class='text' display-start=20 display-transition=1>1時間後</h1>
   </div>
   <div class='page' style='background:black'>
     <video src=out4.mp4></video>

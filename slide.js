@@ -52,6 +52,7 @@ function beforePage(page){
       video.play();
     }
     var currentTime=delay+(video.currentTime||0);
+    if(video.currentTime==0)currentTime=Math.min(currentTime, (new Date()-time)/1000)
     displays.forEach(function(el){
       var t=parseFloat(el.getAttribute('display-transition'));
       var ds=parseFloat(el.getAttribute('display-start'));
@@ -74,7 +75,7 @@ function resize(){
   var wrapper = document.querySelector('.page-wrapper');
   var w=window.innerWidth;
   var h=window.innerHeight;
-  var pageW=1600, pageH=900;
+  var pageW=800, pageH=450;
   var scale=Math.min(w/pageW, h/pageH);
   var cssTrans='translate('+[(w-pageW*scale)/2+'px', (h-pageH*scale)/2+'px']+')'
   var cssScale='scale('+[scale,scale]+')'
