@@ -1,5 +1,14 @@
 require_relative 'block_definition'
 module MCWorld::Block
+  module Data
+    DOWN = Y_MINUS = 0
+    UP = Y_PLUS = 1
+    Z_MINUS = 2
+    Z_PLUS = 3
+    X_MINUS = 4
+    X_PLUS = 5
+    MASK = 8
+  end
   class BlockData
     attr_reader :id, :data, :name
     def initialize name, id, data
@@ -11,6 +20,10 @@ module MCWorld::Block
     def to_s;"#{MCWorld::Block.name}::#{@name}";end
     def sky_light_transparent?
       MCWorld::Block::SkyLightTransparentBlockIds.include? id
+    end
+    Data.constants.each do |name|
+      value = Data.const_get name
+      define_method(name.to_s.downcase){self[value]}
     end
   end
   @blocks = {}
