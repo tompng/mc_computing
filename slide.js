@@ -1,6 +1,9 @@
+var VIDEO=false;
+var selector = VIDEO ? ".page:not([data-video=false])" : ".page:not([data-video=true])"
 onload=function(){
+  if(!VIDEO)document.body.setAttribute('data-comment-show',true);
   var wrapper = document.querySelector('.page-wrapper');
-  var firstPage = wrapper.querySelector('.page.active') || wrapper.querySelector('.page');
+  var firstPage = wrapper.querySelector('.page.active') || wrapper.querySelector(selector);
   firstPage.className = 'page active'
   beforePage(firstPage);
   resize();
@@ -23,7 +26,7 @@ onload=function(){
 }
 function nextPage(dir){
   if(!dir)dir=1;
-  var pages = [].concat.apply([], document.querySelectorAll('.page'));
+  var pages = [].concat.apply([], document.querySelectorAll(selector));
   var page = document.querySelector('.page.active');
   var index = pages.indexOf(page);
   var dstPage = pages[index+dir];
