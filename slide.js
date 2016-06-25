@@ -1,7 +1,10 @@
 var VIDEO=false;
+if(location.href.indexOf('file://')>=0)VIDEO=true;
+if(location.href.indexOf('video-on')>=0)VIDEO=true;
+if(location.href.indexOf('video-off')>=0)VIDEO=false;
 var selector = VIDEO ? ".page:not([data-video=false])" : ".page:not([data-video=true])"
 onload=function(){
-  if(!VIDEO)document.body.setAttribute('data-comment-show',true);
+  if(!VIDEO)document.body.setAttribute('data-show-comment',true);
   var wrapper = document.querySelector('.page-wrapper');
   var firstPage = wrapper.querySelector('.page.active') || wrapper.querySelector(selector);
   firstPage.className = 'page active'
