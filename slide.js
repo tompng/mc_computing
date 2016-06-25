@@ -1,6 +1,6 @@
 onload=function(){
   var wrapper = document.querySelector('.page-wrapper');
-  var firstPage = wrapper.querySelector('.page');
+  var firstPage = wrapper.querySelector('.page.active') || wrapper.querySelector('.page');
   firstPage.className = 'page active'
   beforePage(firstPage);
   resize();
@@ -14,6 +14,12 @@ onload=function(){
     if(e.keyCode == 8 || e.keyCode == 37)nextPage(-1);
     else nextPage();
   }
+  var blink=false;
+  setInterval(function(){
+    var dataname='data-blink-show'
+    if(blink=!blink)document.body.setAttribute(dataname, true);
+    else document.body.removeAttribute(dataname);
+  },500)
 }
 function nextPage(dir){
   if(!dir)dir=1;

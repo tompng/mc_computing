@@ -1,3 +1,5 @@
+.blink{opacity:0;}
+[data-blink-show] .blink{opacity:1}
 body{background:black;}
 .page-wrapper{
   position:fixed;
@@ -26,16 +28,22 @@ comment{
   position:absolute;left:0;top:0;width:100%;height:100%:
 }
 h1{margin-left: 50px;
-  color: white;
-  text-shadow: 0 0 10px #2d0, 0 0 10px #2d0, 0 0 10px #2d0, 0 0 10px #2d0, 0 0 10px #2d0;
-}
-h1.center{margin-left: 0;text-align: center;width:100%;}
-h1.text{
   position: absolute;
-  color: red;
+  left:0;top:0;
   font-weight: bold;
-  font-size: 80px;
-  text-shadow: 0 0 10px white, 0 0 10px white, 0 0 10px white, 0 0 10px white, 0 0 10px white;
+  font-size: 50px;
+  color: white;
+  text-shadow: 0 0 10px #2c0, 0 0 10px #2c0, 0 0 10px #2c0, 0 0 10px #2c0, 0 0 10px #2c0;
+}
+h1.sky{
+  text-shadow: 0 0 10px blue, 0 0 10px blue, 0 0 10px blue, 0 0 10px blue, 0 0 10px blue;
+}
+h1.center{
+  margin-left: 0;text-align: center;width:100%;
+}
+h1.text{
+  /*color: red;*/
+  /*text-shadow: 0 0 10px white, 0 0 10px white, 0 0 10px white, 0 0 10px white, 0 0 10px white;*/
 }
 
 video, .layer-image{
