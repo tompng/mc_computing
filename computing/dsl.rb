@@ -2,19 +2,13 @@ require 'pry'
 module DSL
   class Runtime
     attr_reader :current_block, :variables
-    def self.define_custom_expression name, arity: 0
-      raise if arity < 0 || arity > 2
-      define_method name do |*args|
-        raise if args.size != arity
-        Exp.new :custom, name, *args.map{|v| Exp.to_exp(v)}
-      end
-    end
-    def self.define_custom_statement name, arity: 0
-      raise if arity < 0 || arity > 2
-      define_method name do |*args|
-        raise if args.size != arity
-        current_block.add_operation Exp.new :custom, name, *args.map{|v| Exp.to_exp(v)}
-        nil
+    def self.define_custom_operation operations
+      operations.each do |name, arity|
+        raise if arity < 0 || arity > 2
+        define_method name do |*args|
+          raise if args.size != arity
+          Exp.new self, :custom, name, *args.map{|v| Exp.to_exp(self, v).assign!}
+        end
       end
     end
     def with_block block
@@ -31,7 +25,7 @@ module DSL
     end
     def variable *vars
       vars.each do |name|
-        @variables[name.to_s] = Var.new name, @address_index, self
+        @variables[name.to_s] = Var.new self, name, @address_index
         @address_index += 1
       end
     end
@@ -40,14 +34,14 @@ module DSL
     end
     def array arrs
       arrs.each do |name, size|
-        @variables[name.to_s] = Var.new name, @address_index, self
+        @variables[name.to_s] = Var.new self, name, @address_index
         @address_index += size
       end
     end
     def exec_if cond, &block
       if_block = Block.new
       else_block = Block.new
-      args = [Exp.to_exp(cond), if_block]
+      args = [Exp.to_exp(self, cond).assign!, if_block]
       with_block(if_block, &block)
       ifelse = Object.new
       rt = self
@@ -63,13 +57,13 @@ module DSL
         }
         elsif_block
       end
-      current_block.add_operation Exp.new :exec_if, lazy: args
+      Exp.new self, :exec_if, lazy: args
       ifelse
     end
       def exec_while cond, &block
       while_block = Block.new
       with_block(while_block, &block)
-      current_block.add_operation Exp.new :exec_while, Exp.to_exp(cond), while_block
+      Exp.new self, :exec_while, Exp.to_exp(self, cond).assign!, while_block
       nil
     end
     class Variables < BasicObject
@@ -89,7 +83,7 @@ module DSL
       end
     end
     def const v
-      Const.new v
+      Const.new self, v
     end
     def var
       Variables.new @variables
@@ -98,27 +92,35 @@ module DSL
   Op2 = %i(+ - * / % == != > >= < <= & | << >> ^)
   Op1 = %i(-@ +@ ! ~)
   class Exp
-    attr_reader :op, :args
-    def self.to_exp exp
-      Exp === exp ? exp : Const.new(exp)
+    attr_reader :op, :args, :runtime
+    def assign!
+      runtime.current_block.remove_operation self
+      self
     end
-    def initialize op, *args, lazy: nil
+    def self.to_exp runtime, exp
+      Exp === exp ? exp : Const.new(runtime, exp)
+    end
+    def initialize runtime, op, *args, lazy: nil
+      @runtime = runtime
       @op, @args = op, args
       @args = lazy if lazy
+      runtime.current_block.add_operation self
     end
     def inspect
       to_s
     end
     Op2.each do |op|
-      define_method(op){|val|Exp.new op, self, Exp.to_exp(val)}
+      define_method(op){|val|
+        Exp.new runtime, op, self.assign!, Exp.to_exp(runtime, val).assign!
+      }
     end
     Op1.each do |op|
-      define_method(op){Exp.new op, self}
+      define_method(op){Exp.new runtime, op, self.assign!}
     end
   end
   class Const < Exp
     attr_reader :value
-    def initialize value
+    def initialize runtime, value
       case value
       when String
         raise unless value.size == 1
@@ -132,28 +134,28 @@ module DSL
       else
         raise
       end
-      super :const, @value
+      super runtime, :const, @value
     end
   end
   class Var < Exp
     attr_reader :name, :address
-    def initialize name, addr, runtime
+    def initialize runtime, name, addr
       @name = name
       @runtime = runtime
       @address = addr
-      super :var, addr
+      super runtime, :var, addr
     end
     def to_s
       "var[#{@name}: #{@address}]"
     end
     def assign exp
-      @runtime.current_block.add_operation Exp.new(:'=', self, Exp.to_exp(exp))
+      Exp.new runtime, :'=', self.assign!, Exp.to_exp(runtime, exp).assign!
     end
     def [] i
-      Exp.new :[], self, Exp.to_exp(i)
+      Exp.new runtime, :[], self, Exp.to_exp(runtime, i).assign!
     end
     def []= i, v
-      @runtime.current_block.add_operation Exp.new(:[]=, self, Exp.to_exp(i), Exp.to_exp(v))
+      Exp.new runtime, :[]=, self.assign!, Exp.to_exp(runtime, i).assign!, Exp.to_exp(runtime, v).assign!
     end
   end
   class Block
@@ -163,6 +165,9 @@ module DSL
     end
     def add_operation op
       @operations << op
+    end
+    def remove_operation op
+      @operations = @operations.reject{|o|o.__id__ == op.__id__}
     end
   end
 end

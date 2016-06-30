@@ -8,9 +8,7 @@ end
 
 require_relative '../mc_world/world'
 require_relative 'dsl_compiler'
-DSL::Runtime.define_custom_statement :putc, arity: 1
-DSL::Runtime.define_custom_statement :puti, arity: 1
-DSL::Runtime.define_custom_expression :getc
+DSL::Runtime.define_custom_operation putc: 1, puti: 1, getc: 0
 class Computer
   VALUE_BITS = 32
   BASE_POSITION = {x: 128, y: 0, z: 128}
