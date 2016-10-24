@@ -769,9 +769,9 @@ class Computer
         end
         add["testforblock #{x} #{y} #{z+15} #{i/2==1 ? 'stone' : 'air'}", chain: true, cond: true]
         if mode == :get
-          add["clone ~ ~ #{memz+VALUE_BITS*i} ~ ~ #{memz+VALUE_BITS*(i+1)} #{vx} #{vy} #{vz}", chain: true, cond: true]
+          add["clone ~ ~ #{memz+VALUE_BITS*i} ~ ~ #{memz+VALUE_BITS*(i+1)-1} #{vx} #{vy} #{vz}", chain: true, cond: true]
         else
-          add["clone #{vx} #{vy} #{vz} #{vx} #{vy} #{vz+VALUE_BITS} ~ ~ #{memz+VALUE_BITS*i}", chain: true, cond: true]
+          add["clone #{vx} #{vy} #{vz} #{vx} #{vy} #{vz+VALUE_BITS-1} ~ ~ #{memz+VALUE_BITS*i}", chain: true, cond: true]
         end
       }
       add["setblock #{OP_DONE[:x]} #{OP_DONE[:y]} #{OP_DONE[:z]} redstone_block", chain: true]
