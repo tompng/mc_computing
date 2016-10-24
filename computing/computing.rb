@@ -839,8 +839,8 @@ class Computer
       x = addr&0x7f
       y = (addr>>7)&0x7f
       z = 0
-      z |= ((addr>>14)&1)<<1
-      z |= ((addr>>15)&1)<<2
+      z |= ((addr>>14)&1)
+      z |= ((addr>>15)&1)<<1
       {x: MEM_ADDRESS[:x]+x, y: MEM_ADDRESS[:y]+y, z: MEM_ADDRESS[:z]+VALUE_BITS*z}
     end
   end
