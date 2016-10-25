@@ -63,7 +63,6 @@ computer = Computer.new do
     putc "\n"
     var.x = -28
     exec_if var.z > 8 do
-      var.maskshift += 1
       exec_if var.maskshift == 3 do
         var.maskshift = 0
         var.mask0a += var.mask0a
@@ -73,6 +72,7 @@ computer = Computer.new do
         var.mask1b += var.mask1b
         var.mask2b += var.mask2b
       end
+      var.maskshift += 1
     end
     exec_while var.x != 29 do
       var.r = var.sqrtmap[var.powmap[var.x+32]+var.powmap[var.z+32]]
@@ -114,6 +114,6 @@ computer = Computer.new do
   var.index = 0
   var.r = 0
   64.times{|i|var.powmap[i] = 0}
-  256.times{|i|var.powmap[i] = 0}
+  256.times{|i|var.sqrtmap[i] = 0}
 end
 File.write 'r.0.0.mca', computer.world_data
