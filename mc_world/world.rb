@@ -24,7 +24,7 @@ class MCWorld::World
       @sectors = 1024.times.map do |i|
         sector_id, sector_count = @mcadata[4*i,4].unpack('N')[0].divmod(0x100)
         size, compress = @mcadata[sector_id*4096,5].unpack 'Nc'
-        @mcadata[sector_id*4096+5,size-1] unless size.zero?
+        @mcadata[sector_id*4096+5,size-1] unless size.zero? || sector_id.zero?
       end
       @timestamps = @mcadata[4096,4096].unpack 'N*'
       if /r\.(?<xs>\d)\.(?<zs>\d)\.mca/ =~ file
