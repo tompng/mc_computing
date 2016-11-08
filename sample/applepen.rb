@@ -29,6 +29,12 @@ computer = Computer.new do
   var.mask1b = 0xfffffffe
   var.mask2b = 0xffffffff
 
+  putc 'P'
+  putc 'P'
+  putc 'A'
+  putc 'P'
+  putc "\n"
+
   32.times{|i|
     var.powmap[32+i] = (128*(i/32.0)**2).round
     var.powmap[32-i] = (128*(i/32.0)**2).round
@@ -51,11 +57,6 @@ computer = Computer.new do
 
   var.z = 2
   var.index += 128
-  putc 'P'
-  putc 'P'
-  putc 'A'
-  putc 'P'
-  putc "\n"
 
   exec_while var.z < 29 do
     'line'.each_char{|c| putc c}
