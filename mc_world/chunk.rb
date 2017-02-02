@@ -132,7 +132,7 @@ module MCWorld
         section_hash = {
           'Y' => Tag::Byte.new(yi),
           'Blocks' => Tag::ByteArray.new(id_array),
-          'SkyLight' => Tag::ByteArray.new(2048.times.map{0}),
+          'SkyLight' => Tag::ByteArray.new(2048.times.map{0xff}),
           'BlockLight' => Tag::ByteArray.new(2048.times.map{0}),
           'Data' => Tag::ByteArray.new(data_array),
         }
